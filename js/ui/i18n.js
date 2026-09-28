@@ -1,0 +1,101 @@
+"use strict";
+
+/* =========================================================================
+ * Internationalisation and language picker
+ *
+ * Strings live in lang/<code>.js (I18N.<code> = {...}).
+ *
+ * Depends on: jQuery, lang/*.js; updatePreview() from app.js at click time
+ * ========================================================================= */
+
+let currentLang = "sv";
+
+function t(key) {
+  return (I18N[currentLang] && I18N[currentLang][key]) || (I18N.sv && I18N.sv[key]) || key;
+}
+
+function applyI18n() {
+  $("[data-i18n]").each(function() {
+    $(this).text(t($(this).attr("data-i18n")));
+  });
+  $("[data-i18n-placeholder]").each(function() {
+    $(this).attr("placeholder", t($(this).attr("data-i18n-placeholder")));
+  });
+  document.documentElement.lang = currentLang;
+  document.title = t("title");
+  // Keep the show/hide button in its current state, only translate the label.
+  const isPwdHidden = $("#pswd").attr("type") === "password";
+  $("#togglePwd").text(isPwdHidden ? t("show") : t("hide"));
+  $(document).trigger("i18n:applied");
+}
+
+// The language picker is built from whichever lang/*.js files are loaded in <head>.
+// To add a language: create lang/xx.js (with "langName" and "flagCode"), add the flag as
+// assets/flags/<flagCode>.svg and add a <script src="lang/xx.js"> line — nothing else.
+// Flags are local files: the app must never contact a third-party host.
+const FLAG_FALLBACK = "assets/flags/un.svg";
+
+function flagUrl(code) {
+  return /^[a-z]{2}$/.test(code || "") ? "assets/flags/" + code + ".svg" : FLAG_FALLBACK;
+}
+
+// Falls back to a neutral icon (once) if a language ships without its flag file.
+function flagImg(img, code) {
+  return $(img)
+    .off("error.flag")
+    .one("error.flag", function() { this.src = FLAG_FALLBACK; })
+    .attr("src", flagUrl(code));
+}
+
+function updateLangButton() {
+  const entry = I18N[currentLang] || {};
+  flagImg("#langBtnFlag", entry.flagCode).attr("alt", "");
+  $("#langBtnName").text(entry.langName || currentLang).attr("lang", currentLang);
+  $("#langPopover .lang-option").each(function() {
+    if ($(this).attr("data-code") === currentLang) $(this).attr("aria-current", "true");
+    else $(this).removeAttr("aria-current");
+  });
+}
+
+function populateLangSelect() {
+  const popover = $("#langPopover").empty();
+  Object.keys(I18N).sort().forEach(function(code) {
+    const entry = I18N[code] || {};
+    const btn = $("<button type='button' class='lang-option'></button>")
+      .attr("data-code", code)
+      .append(flagImg($("<img alt=''>"), entry.flagCode))
+      // Each language name is written in its own language (WCAG 3.1.2 language of parts).
+      .append($("<span></span>").attr("lang", code).text(entry.langName || code));
+    btn.on("click", function() {
+      currentLang = code;
+      updateLangButton();
+      closeLangPopover();
+      applyI18n();
+      updatePreview();
+    });
+    popover.append(btn);
+  });
+  updateLangButton();
+}
+
+function closeLangPopover() {
+  $("#langPopover").removeClass("open");
+  $("#langBtn").attr("aria-expanded", "false");
+}
+
+populateLangSelect();
+
+$("#langBtn").on("click", function(e) {
+  e.stopPropagation();
+  const open = !$("#langPopover").hasClass("open");
+  $("#langPopover").toggleClass("open", open);
+  $(this).attr("aria-expanded", String(open));
+});
+$("#langPopover").on("click", function(e) { e.stopPropagation(); });
+$(document).on("click", closeLangPopover);
+$("#langPicker").on("keydown", function(e) {
+  if (e.key === "Escape" && $("#langPopover").hasClass("open")) {
+    closeLangPopover();
+    $("#langBtn").trigger("focus");
+  }
+});

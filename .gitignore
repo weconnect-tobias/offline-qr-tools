@@ -1,0 +1,7 @@
+# Development tooling (the app itself has no build output)
+node_modules/
+test-results/
+playwright-report/
+
+# Local backups created while working on the project
+_backup-*/

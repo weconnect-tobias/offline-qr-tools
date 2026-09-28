@@ -1,0 +1,19 @@
+{
+  "name": "wifi-qr-code-generator",
+  "version": "1.0.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Offline Wi-Fi QR code generator. The app itself has no runtime dependencies; this file only defines the development test tooling.",
+  "scripts": {
+    "test": "npm run test:unit && npm run test:e2e",
+    "test:unit": "node --test \"tests/unit/*.test.js\"",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "axe-core": "4.13.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

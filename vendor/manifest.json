@@ -1,0 +1,49 @@
+{
+  "_comment": "Source of truth for vendored dependencies. Checked and updated by tools/Check-Dependencies.ps1.",
+  "dependencies": [
+    {
+      "name": "jquery",
+      "title": "jQuery",
+      "version": "4.0.0",
+      "file": "jquery/jquery-4.0.0.min.js",
+      "npmFile": "dist/jquery.min.js",
+      "license": "MIT",
+      "purpose": "DOM / events",
+      "sha384": "fgGyf7Mo7DURSOMnOy7ed+dkq5Job205Gnzu6QIg0BOHKaqt4D76Dt8VlDCzcMHV",
+      "releases": "https://github.com/jquery/jquery/releases"
+    },
+    {
+      "name": "qrcode-generator",
+      "title": "qrcode-generator",
+      "version": "2.0.4",
+      "file": "qrcode-generator/qrcode-2.0.4.js",
+      "npmFile": "dist/qrcode.js",
+      "license": "MIT",
+      "purpose": "QR matrix generation",
+      "sha384": "e9EFD6BGC90bkW9aDV5xbbBfzwN7G8YImHao2lfLVKV/hPB0E0go+H3I64h7oHtA",
+      "releases": "https://github.com/kazuhikoarase/qrcode-generator"
+    },
+    {
+      "name": "jsqr",
+      "title": "jsQR",
+      "version": "1.4.0",
+      "file": "jsqr/jsQR-1.4.0.js",
+      "npmFile": "dist/jsQR.js",
+      "license": "Apache-2.0",
+      "purpose": "Local scan self-test",
+      "sha384": "b5Ya4Bq3qCyz39m2ISh+4DxjAIljdeFwK/BsXLuj9gugaNwAcj/ia15fxNZL9Nlx",
+      "releases": "https://github.com/cozmo/jsQR/releases"
+    },
+    {
+      "name": "jspdf",
+      "title": "jsPDF",
+      "version": "4.2.1",
+      "file": "jspdf/jspdf-4.2.1.umd.min.js",
+      "npmFile": "dist/jspdf.umd.min.js",
+      "license": "MIT",
+      "purpose": "PDF export",
+      "sha384": "qovJwSBbRDPP5cEjCp8S0UP66wrvnjaa60XMOGzTNanrThcrGfXfnZkvgY8N1KT3",
+      "releases": "https://github.com/parallax/jsPDF/releases"
+    }
+  ]
+}

@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'none'; font-src 'none'; object-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Wi-Fi QR-kodsgenerator</title>
+<link rel="stylesheet" href="css/app.css">
+<!-- All dependencies are vendored (see vendor/README.md): the app makes no network requests at all. -->
+<script src="vendor/jquery/jquery-4.0.0.min.js"></script>
+<script src="vendor/qrcode-generator/qrcode-2.0.4.js"></script>
+<script src="vendor/jsqr/jsQR-1.4.0.js"></script>
+<script src="vendor/jspdf/jspdf-4.2.1.umd.min.js"></script>
+<script src="lang/sv.js"></script>
+<script src="lang/en.js"></script>
+<!-- New language? Add lang/xx.js (copy lang/en.js as a template), a flag in assets/flags/<flagCode>.svg
+     and a line here, e.g.: -->
+<!-- <script src="lang/no.js"></script> -->
+</head>
+<body>
+
+<div class="top-bar">
+  <div>
+    <h1 data-i18n="title">Wi-Fi QR-kodsgenerator</h1>
+    <p class="sub" data-i18n="subtitle">Skapa en QR-kod som ansluter enheter direkt till ditt Wi-Fi-nätverk.</p>
+  </div>
+  <div class="lang-picker" id="langPicker">
+    <button type="button" class="lang-btn" id="langBtn" aria-expanded="false" aria-controls="langPopover">
+      <img id="langBtnFlag" src="assets/flags/un.svg" alt="">
+      <span id="langBtnName"></span>
+      <span class="lang-caret" aria-hidden="true">▾</span>
+    </button>
+    <div class="lang-popover" id="langPopover"></div>
+  </div>
+</div>
+
+<div class="layout">
+<div class="preview-col">
+  <div class="btn-row btn-row-top">
+    <button id="download" disabled data-i18n="download">Ladda ner</button>
+  </div>
+
+  <div class="qr-box" id="qrBox">
+    <div id="demoLabel" class="demo-label" role="status" data-i18n="demoLabel">Exempel — fyll i dina uppgifter så uppdateras QR-koden automatiskt</div>
+    <div id="qrcode"></div>
+  </div>
+  <div class="scan-status" id="scanStatus" role="status" aria-live="polite" hidden>
+    <span class="scan-icon" aria-hidden="true"></span>
+    <span class="scan-text"></span>
+  </div>
+  <p class="hint" data-i18n="hint">Lösenordet skickas aldrig någonstans — allt sker lokalt i webbläsaren.</p>
+</div>
+
+<div class="form-col">
+
+<label for="ssid" data-i18n="ssidLabel">Nätverksnamn (SSID)</label>
+<input type="text" id="ssid" aria-required="true" autocomplete="off" autocapitalize="off" spellcheck="false" data-i18n-placeholder="ssidPlaceholder" placeholder="T.ex. Kontoret-5G">
+
+<label for="security" data-i18n="securityLabel">Säkerhetstyp</label>
+<select id="security">
+  <option value="WPA" data-i18n="secWPA">WPA/WPA2/WPA3</option>
+  <option value="WEP" data-i18n="secWEP">WEP</option>
+  <option value="WPA2-EAP" data-i18n="secEAP">WPA2-EAP (enterprise)</option>
+  <option value="nopass" data-i18n="secNone">Inget lösenord (öppet nätverk)</option>
+</select>
+
+<div id="pwd-field">
+  <label for="pswd" data-i18n="pswdLabel">Lösenord</label>
+  <div class="pwd-wrap">
+    <input type="password" id="pswd" autocomplete="off" autocapitalize="off" spellcheck="false" data-i18n-placeholder="pswdPlaceholder" placeholder="Nätverkslösenord">
+    <button type="button" id="togglePwd" aria-controls="pswd" aria-pressed="false" data-i18n="show">Visa</button>
+  </div>
+</div>
+
+<div class="is-hidden" id="eap-fields">
+  <label for="eapMethod" data-i18n="eapMethodLabel">EAP-metod</label>
+  <select id="eapMethod">
+    <option value="PEAP">PEAP</option>
+    <option value="TTLS">TTLS</option>
+    <option value="TLS">TLS</option>
+    <option value="PWD">PWD</option>
+  </select>
+
+  <label for="phase2" data-i18n="phase2Label">Fas 2-metod</label>
+  <select id="phase2">
+    <option value="MSCHAPV2">MSCHAPV2</option>
+    <option value="GTC">GTC</option>
+    <option value="PAP">PAP</option>
+    <option value="" data-i18n="none">Ingen</option>
+  </select>
+
+  <label for="identity" data-i18n="identityLabel">Identitet (användarnamn)</label>
+  <input type="text" id="identity" autocomplete="off" autocapitalize="off" spellcheck="false" data-i18n-placeholder="identityPlaceholder" placeholder="T.ex. anvandare@domän.se">
+
+  <label class="inline-check">
+    <input type="checkbox" id="anonIdentity">
+    <span data-i18n="anonIdentity">Använd anonym yttre identitet</span>
+  </label>
+
+  <div class="notice" data-i18n="eapNotice">
+    Obs: QR-baserad EAP/enterprise-anslutning stöds i praktiken bara pålitligt på Android.
+  </div>
+</div>
+
+<label class="inline-check inline-check-spaced">
+  <input type="checkbox" id="hidden">
+  <span data-i18n="hiddenNetwork">Dolt nätverk</span>
+</label>
+
+<div class="is-hidden notice notice-error" id="formError" role="alert"></div>
+
+<details>
+<summary data-i18n="qrStyleTitle">QR-kodstil</summary>
+<div class="details-body">
+
+<label for="qrShape" data-i18n="qrShapeLabel">Punktform</label>
+<select id="qrShape">
+  <option value="square" selected data-i18n="shapeSquare">Fyrkanter</option>
+  <option value="rounded" data-i18n="shapeRounded">Rundade fyrkanter</option>
+  <option value="dots" data-i18n="shapeDots">Cirklar</option>
+</select>
+
+<div class="row">
+  <div>
+    <span class="field-label" id="qrColorCaption" data-i18n="qrColorLabel">QR-färg</span>
+    <div class="color-picker" id="qrColorPicker">
+      <button type="button" class="color-swatch-btn" id="qrColorSwatch"></button>
+      <input type="hidden" id="qrColor" value="#000000">
+      <div class="color-popover" id="qrColorPopover" role="group" aria-labelledby="qrColorCaption">
+        <div class="swatch-grid" id="qrColorGrid"></div>
+        <div class="hex-input-row">
+          <span class="hex-prefix" aria-hidden="true">#</span>
+          <input type="text" id="qrColorHex" maxlength="6" placeholder="000000" autocomplete="off" spellcheck="false">
+        </div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <span class="field-label" id="qrBgColorCaption" data-i18n="qrBgColorLabel">Bakgrundsfärg</span>
+    <div class="color-picker" id="qrBgColorPicker">
+      <button type="button" class="color-swatch-btn" id="qrBgColorSwatch"></button>
+      <input type="hidden" id="qrBgColor" value="#ffffff">
+      <div class="color-popover" id="qrBgColorPopover" role="group" aria-labelledby="qrBgColorCaption">
+        <div class="swatch-grid" id="qrBgColorGrid"></div>
+        <div class="hex-input-row">
+          <span class="hex-prefix" aria-hidden="true">#</span>
+          <input type="text" id="qrBgColorHex" maxlength="6" placeholder="ffffff" autocomplete="off" spellcheck="false">
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="is-hidden notice" id="contrastWarning" role="status" data-i18n="contrastWarning">
+  Låg kontrast mellan QR-färg och bakgrund kan göra koden svår att skanna.
+</div>
+
+</div>
+</details>
+
+<details>
+<summary data-i18n="logoTitle">Logotyp</summary>
+<div class="details-body">
+
+<div class="logo-row">
+  <div class="logo-preview" id="logoPreview">
+    <span class="logo-none" data-i18n="none">Ingen</span>
+  </div>
+  <input class="visually-hidden" type="file" id="logoFile" accept="image/png,image/jpeg" aria-describedby="logoHint logoError">
+  <label class="file-btn" for="logoFile" data-i18n="chooseImage">Välj bild</label>
+  <button type="button" class="is-hidden small-btn" id="removeLogo" data-i18n="remove">Ta bort</button>
+</div>
+<p class="hint" id="logoHint" data-i18n="logoHint">PNG eller JPEG, max 2 MB.</p>
+<div class="is-hidden notice notice-error" id="logoError" role="alert"></div>
+
+<div class="is-hidden" id="logoExtras">
+  <label for="logoSize" data-i18n="logoSizeLabel">Logotypens storlek</label>
+  <input type="range" id="logoSize" min="10" max="30" value="20" aria-valuetext="20 %">
+
+  <label class="inline-check">
+    <input type="checkbox" id="logoBgWhite" checked>
+    <span data-i18n="logoBgWhite">Vit bakgrund bakom logotypen (rekommenderas för bättre skanning)</span>
+  </label>
+
+  <div class="notice" data-i18n="logoNotice">
+    En logotyp döljer en del av QR-koden.
+  </div>
+</div>
+
+</div>
+</details>
+
+<details>
+<summary data-i18n="frameTitle">Ram och banderoll</summary>
+<div class="details-body">
+
+<label for="frameStyle" data-i18n="frameStyleLabel">Ramstil</label>
+<select id="frameStyle">
+  <option value="none" selected data-i18n="frameNone">Ingen ram</option>
+  <option value="border" data-i18n="frameBorder">Enkel ram</option>
+  <option value="rounded" data-i18n="frameRounded">Rundad ram</option>
+  <option value="dashed" data-i18n="frameDashed">Streckad ram (klipp ut)</option>
+  <option value="card" data-i18n="frameCard">Kort (färgad ram med text)</option>
+  <option value="ribbon" data-i18n="frameRibbon">Banderoll under QR-koden</option>
+  <option value="bubble" data-i18n="frameBubble">Pratbubbla ("Skanna mig!")</option>
+</select>
+
+<div id="frameColorWrap">
+  <span class="field-label" id="frameColorCaption" data-i18n="frameColorLabel">Ram- och banderollfärg</span>
+  <div class="color-picker" id="frameColorPicker">
+    <button type="button" class="color-swatch-btn" id="frameColorSwatch"></button>
+    <input type="hidden" id="frameColor" value="#1a1a1a">
+    <div class="color-popover" id="frameColorPopover" role="group" aria-labelledby="frameColorCaption">
+      <div class="swatch-grid" id="frameColorGrid"></div>
+      <div class="hex-input-row">
+        <span class="hex-prefix" aria-hidden="true">#</span>
+        <input type="text" id="frameColorHex" maxlength="6" placeholder="1a1a1a" autocomplete="off" spellcheck="false">
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+</details>
+
+<details>
+<summary data-i18n="textTitle">Text vid QR-koden</summary>
+<div class="details-body">
+
+<label for="textStyle" data-i18n="textStyleLabel">Textstil</label>
+<select id="textStyle">
+  <option value="none" selected data-i18n="textNone">Ingen text</option>
+  <option value="plain" data-i18n="textPlain">Vanlig text</option>
+  <option value="banner" data-i18n="textBanner">Banderoll (färgad platta)</option>
+</select>
+
+<p class="is-hidden hint" id="textOwnedHint" data-i18n="textOwnedHint">Den valda ramstilen bestämmer var texten placeras.</p>
+
+<div id="textExtras">
+  <label for="titleText" data-i18n="titleTextLabel">Rubrik ovanför (valfritt)</label>
+  <input type="text" id="titleText" maxlength="60" autocomplete="off" data-i18n-placeholder="titleTextPlaceholder" placeholder="T.ex. Gäst-WiFi">
+
+  <label for="captionText" data-i18n="captionTextLabel">Text under QR-koden (valfritt)</label>
+  <input type="text" id="captionText" maxlength="80" autocomplete="off" data-i18n-placeholder="captionTextPlaceholder" placeholder="Auto: Skanna för att ansluta till [SSID]">
+
+  <label for="textSize" data-i18n="textSizeLabel">Textstorlek</label>
+  <select id="textSize">
+    <option value="0.8" data-i18n="sizeSmall">Liten</option>
+    <option value="1.2" selected data-i18n="sizeNormal">Normal</option>
+    <option value="1.6" data-i18n="sizeLarge">Stor</option>
+    <option value="2.0" data-i18n="sizeXLarge">Extra stor</option>
+  </select>
+
+  <div class="is-hidden" id="textBgColorWrap">
+    <span class="field-label" id="textBgColorCaption" data-i18n="bannerColorLabel">Bannerfärg</span>
+    <div class="color-picker" id="textBgColorPicker">
+      <button type="button" class="color-swatch-btn" id="textBgColorSwatch"></button>
+      <input type="hidden" id="textBgColor" value="#1a1a1a">
+      <div class="color-popover" id="textBgColorPopover" role="group" aria-labelledby="textBgColorCaption">
+        <div class="swatch-grid" id="textBgColorGrid"></div>
+        <div class="hex-input-row">
+          <span class="hex-prefix" aria-hidden="true">#</span>
+          <input type="text" id="textBgColorHex" maxlength="6" placeholder="1a1a1a" autocomplete="off" spellcheck="false">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <label class="inline-check">
+    <input type="checkbox" id="autoTextColor" checked>
+    <span data-i18n="autoTextColor">Automatisk textfärg (svart/vit efter kontrast)</span>
+  </label>
+
+  <div class="is-hidden" id="manualTextColorWrap">
+    <span class="field-label" id="textColorCaption" data-i18n="textColorLabel">Textfärg</span>
+    <div class="color-picker" id="textColorPicker">
+      <button type="button" class="color-swatch-btn" id="textColorSwatch"></button>
+      <input type="hidden" id="textColor" value="#ffffff">
+      <div class="color-popover" id="textColorPopover" role="group" aria-labelledby="textColorCaption">
+        <div class="swatch-grid" id="textColorGrid"></div>
+        <div class="hex-input-row">
+          <span class="hex-prefix" aria-hidden="true">#</span>
+          <input type="text" id="textColorHex" maxlength="6" placeholder="ffffff" autocomplete="off" spellcheck="false">
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<label class="inline-check">
+  <input type="checkbox" id="wifiIcon">
+  <span data-i18n="wifiIconLabel">Visa Wi-Fi-ikon vid texten</span>
+</label>
+
+<div class="is-hidden notice" id="textContrastWarning" role="status" data-i18n="textContrastWarning">
+  Låg kontrast mellan texten och dess bakgrund.
+</div>
+
+<div class="is-hidden notice notice-error" id="textPasswordWarning" role="alert" data-i18n="textPasswordWarning">
+  Texten innehåller lösenordet.
+</div>
+
+</div>
+</details>
+
+<details>
+<summary data-i18n="exportTitle">Export</summary>
+<div class="details-body">
+
+<label for="exportFormat" data-i18n="exportFormatLabel">Format</label>
+<select id="exportFormat">
+  <option value="png" data-i18n="formatPng">PNG (bild)</option>
+  <option value="svg" data-i18n="formatSvg">SVG (vektor)</option>
+  <option value="pdf" data-i18n="formatPdf">PDF (utskrift)</option>
+</select>
+
+<div id="pixelSizeWrap">
+  <label for="exportSize" data-i18n="exportSizeLabel">Storlek</label>
+  <select id="exportSize">
+    <option value="300" data-i18n="sizeS300">Litet (300 px)</option>
+    <option value="600" selected data-i18n="sizeS600">Mellan (600 px)</option>
+    <option value="1200" data-i18n="sizeS1200">Stort (1200 px)</option>
+    <option value="2000" data-i18n="sizeS2000">Extra stort (2000 px)</option>
+    <option value="custom" data-i18n="sizeCustom">Egen storlek</option>
+  </select>
+</div>
+
+<div class="is-hidden" id="customSizeWrap">
+  <label for="customSize" data-i18n="customSizeLabel">Egen bredd (px)</label>
+  <input type="number" id="customSize" min="100" max="4000" value="900">
+</div>
+
+<div class="is-hidden" id="pdfExtras">
+  <div class="row">
+    <div>
+      <label for="pdfPaper" data-i18n="pdfPaperLabel">Pappersstorlek</label>
+      <select id="pdfPaper">
+        <option value="a4" selected>A4</option>
+        <option value="a5">A5</option>
+        <option value="a6">A6</option>
+        <option value="letter">Letter (US)</option>
+        <option value="legal">Legal (US)</option>
+      </select>
+    </div>
+    <div>
+      <label for="pdfOrientation" data-i18n="pdfOrientationLabel">Orientering</label>
+      <select id="pdfOrientation">
+        <option value="portrait" selected data-i18n="portrait">Stående</option>
+        <option value="landscape" data-i18n="landscape">Liggande</option>
+      </select>
+    </div>
+  </div>
+
+  <label for="pdfWidthMM" data-i18n="pdfWidthLabel">QR-bredd på papperet (mm)</label>
+  <input type="number" id="pdfWidthMM" min="20" max="250" value="80">
+</div>
+
+</div>
+</details>
+
+<details id="printSection">
+<summary data-i18n="printTitle">Utskrift</summary>
+<div class="details-body">
+
+<div class="row">
+  <div>
+    <label for="printLayout" data-i18n="printLayoutLabel">Layout</label>
+    <select id="printLayout">
+      <option value="sign" selected data-i18n="layoutSign">Skylt</option>
+      <option value="tent" data-i18n="layoutTent">Bordsskylt (vikbar)</option>
+      <option value="cards" data-i18n="layoutCards">Kortark (85 × 55 mm)</option>
+    </select>
+  </div>
+  <div>
+    <label for="printPaper" data-i18n="printPaperLabel">Papper</label>
+    <select id="printPaper">
+      <option value="a4" selected>A4</option>
+      <option value="letter">Letter (US)</option>
+    </select>
+  </div>
+</div>
+
+<label class="inline-check inline-check-spaced">
+  <input type="checkbox" id="printInstructions" checked>
+  <span data-i18n="printInstructionsLabel">Visa instruktioner</span>
+</label>
+
+<label class="inline-check">
+  <input type="checkbox" id="printShowSsid" aria-describedby="printCredHint">
+  <span data-i18n="printShowSsidLabel">Skriv ut nätverksnamnet i klartext</span>
+</label>
+
+<p class="hint" id="printCredHint" data-i18n="printHint">Lösenordet skrivs aldrig ut i klartext – det finns bara i QR-koden.</p>
+
+<div class="print-preview" id="printPreview"></div>
+
+<div class="scan-status" id="printStatus" role="status" aria-live="polite" hidden>
+  <span class="scan-icon" aria-hidden="true"></span>
+  <span class="scan-text"></span>
+</div>
+
+<div class="btn-row">
+  <button type="button" id="printDownload" disabled data-i18n="printDownload">Ladda ner utskrifts-PDF</button>
+</div>
+
+</div>
+</details>
+
+</div>
+</div>
+
+<!-- Load order matters: classic scripts share globals (ES modules are blocked on file://). -->
+<script src="js/core/util.js"></script>
+<script src="js/core/payload.js"></script>
+<script src="js/render/scene.js"></script>
+<script src="js/render/templates.js"></script>
+<script src="js/render/renderer.js"></script>
+<script src="js/ui/state.js"></script>
+<script src="js/ui/i18n.js"></script>
+<script src="js/ui/color-picker.js"></script>
+<script src="js/ui/scan-check.js"></script>
+<script src="js/ui/logo.js"></script>
+<script src="js/app.js"></script>
+<script src="js/print-layouts.js"></script>
+
+</body>
+</html>
