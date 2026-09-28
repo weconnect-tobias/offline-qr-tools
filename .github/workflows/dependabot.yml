@@ -1,0 +1,20 @@
+# Keeps the CI actions and the development test tooling up to date via pull requests.
+# The vendored browser libraries (vendor/) are NOT covered by Dependabot; they are checked
+# weekly by tools/Check-Dependencies.ps1 in CI (see vendor/README.md).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      test-tooling:
+        patterns: ["*"]
