@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "17 5 * * 1" # weekly: catch new advisories for the vendored libraries
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Unit and browser tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
+
+  dependencies:
+    name: Vendored libraries (checksums + advisories)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check-Dependencies.ps1
+        shell: pwsh
+        run: |
+          ./tools/Check-Dependencies.ps1
+          # 0 = OK, 1 = update available (informational), 2 = advisory/checksum problem, 3 = error
+          if ($LASTEXITCODE -ge 2) { exit $LASTEXITCODE }
+          exit 0
