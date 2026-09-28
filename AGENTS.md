@@ -124,6 +124,12 @@ A layout builds a page model in millimetres (`image`, `text`, `rect`, `line`) re
 Physical module size is checked (warn < 0.6 mm, fail < 0.4 mm). Text outside Windows-1252
 (PDF standard fonts) is drawn as an image instead of producing wrong glyphs.
 
+### Language selection (`js/ui/i18n.js`, `resolveLanguage()` in `js/core/util.js`)
+Start language: `?lang=xx` in the link → the user's saved choice → `navigator.languages`
+(`en-GB` matches `en`) → English. A manual choice in the picker is saved in `localStorage`
+(key `offline-qr-tools.lang`, the language code only — the only thing the app ever stores).
+Never store form content (SSID, password, contact details…) in `localStorage` or anywhere else.
+
 ### Events between modules
 - `preview:rendered` — fired by `renderPreview()` after every redraw.
 - `qrtype:changed` — fired by `setQrType()` when the content type changes.

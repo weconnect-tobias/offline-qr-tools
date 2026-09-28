@@ -91,3 +91,24 @@ function isWinAnsi(text) {
   }
   return true;
 }
+
+// Picks the UI language. Priority: explicit link (?lang=xx) → the user's saved choice →
+// the browser's preferred languages (en-GB matches en) → fallback. Only codes that have a
+// loaded language file are ever returned, so no unvalidated value reaches the DOM.
+function resolveLanguage(options) {
+  const available = (options.available || []).map(function(c) { return String(c).toLowerCase(); });
+  const pick = function(value) {
+    if (typeof value !== "string") return null;
+    const code = value.trim().toLowerCase();
+    if (!/^[a-z]{2,3}(-[a-z0-9]{2,8})*$/.test(code)) return null;
+    if (available.indexOf(code) >= 0) return code;
+    const primary = code.split("-")[0];
+    return available.indexOf(primary) >= 0 ? primary : null;
+  };
+  const candidates = [options.urlLang, options.saved].concat(options.browser || []);
+  for (let i = 0; i < candidates.length; i++) {
+    const code = pick(candidates[i]);
+    if (code) return code;
+  }
+  return available.indexOf(options.fallback) >= 0 ? options.fallback : available[0];
+}

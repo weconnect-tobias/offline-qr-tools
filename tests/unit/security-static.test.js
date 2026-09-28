@@ -77,3 +77,11 @@ test("logo upload only accepts PNG/JPEG", () => {
   assert.match(html, /id="logoFile" accept="image\/png,image\/jpeg"/);
   assert.ok(!/svg\+xml/.test(read("js/ui/logo.js")));
 });
+
+test("localStorage is only used for the language choice (never form content)", () => {
+  for (const f of appJs) {
+    const uses = (read(f).match(/localStorage\.setItem\([^)]*\)/g) || []);
+    for (const u of uses) assert.match(u, /^localStorage\.setItem\(LANG_STORAGE_KEY, code\)$/, `${f}: ${u}`);
+  }
+  assert.ok(!appJs.some((f) => /sessionStorage|indexedDB|document\.cookie/.test(read(f))), "no other storage APIs");
+});

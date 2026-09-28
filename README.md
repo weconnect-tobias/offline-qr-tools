@@ -16,6 +16,8 @@ Create styled, print-ready QR codes for **Wi-Fi**, **web addresses**, **text**, 
 - **Text**, **e-mail** (recipient, subject, message), **phone**, **SMS**, **contact card**
   (vCard 3.0) and **location** (coordinates)
 - Direct links to a type, e.g. `index.html#url` or `index.html#vcard`
+- Opens in your browser's language (Swedish or English, otherwise English), remembers a manual
+  choice, and `?lang=sv` / `?lang=en` in a link forces a language
 - Styling: colors, square/rounded/dot modules, logo, frames, ribbon, speech bubble, card
 - **Scan self-test**: every design is decoded locally and checked byte-for-byte before you use it
 - Export as PNG, SVG or PDF

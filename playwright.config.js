@@ -15,10 +15,13 @@ module.exports = defineConfig({
   use: {
     baseURL: "http://127.0.0.1:4173",
     acceptDownloads: true,
+    // The start language follows the browser; most tests assert Swedish texts.
+    // tests/e2e/language.spec.js overrides this per test.
+    locale: "sv-SE",
     trace: "retain-on-failure",
     launchOptions
   },
-  projects: [{ name: "chromium", use: Object.assign({}, devices["Desktop Chrome"], { launchOptions }) }],
+  projects: [{ name: "chromium", use: Object.assign({}, devices["Desktop Chrome"], { launchOptions, locale: "sv-SE" }) }],
   webServer: {
     command: "node tests/support/static-server.js",
     url: "http://127.0.0.1:4173/index.html",

@@ -42,3 +42,23 @@ test("isWinAnsi decides vector text vs image in PDFs", () => {
   assert.equal(isWinAnsi("Café 🍩"), false);
   assert.equal(isWinAnsi("Łódź"), false);
 });
+
+test("resolveLanguage: link → saved choice → browser languages → fallback", () => {
+  const resolve = (o) => get("resolveLanguage")(Object.assign({ available: ["en", "sv"], fallback: "en" }, o));
+  assert.equal(resolve({ browser: ["sv-SE", "en-US"] }), "sv");
+  assert.equal(resolve({ browser: ["en-GB", "sv"] }), "en");
+  assert.equal(resolve({ browser: ["de-DE", "sv"] }), "sv");     // first supported in the user's list
+  assert.equal(resolve({ browser: ["de-DE", "fr"] }), "en");     // nothing supported → fallback
+  assert.equal(resolve({ browser: [] }), "en");
+  assert.equal(resolve({ saved: "sv", browser: ["en-US"] }), "sv");
+  assert.equal(resolve({ urlLang: "en", saved: "sv", browser: ["sv"] }), "en");
+  assert.equal(resolve({ urlLang: "SV-se", browser: ["en"] }), "sv"); // case-insensitive, region ignored
+});
+
+test("resolveLanguage ignores unknown or malformed codes", () => {
+  const resolve = (o) => get("resolveLanguage")(Object.assign({ available: ["en", "sv"], fallback: "en" }, o));
+  for (const bad of ["xx", "<script>", "en;sv", "../sv", "", null, 42]) {
+    assert.equal(resolve({ urlLang: bad, saved: bad, browser: ["sv"] }), "sv", String(bad));
+  }
+  assert.equal(get("resolveLanguage")({ available: ["sv"], fallback: "en", browser: ["de"] }), "sv"); // fallback missing → first available
+});

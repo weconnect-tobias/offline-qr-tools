@@ -4,14 +4,41 @@
  * Internationalisation and language picker
  *
  * Strings live in lang/<code>.js (I18N.<code> = {...}).
+ * The start language follows ?lang=xx, then the saved choice, then the browser's
+ * languages, then English (see resolveLanguage() in core/util.js).
  *
- * Depends on: jQuery, lang/*.js; updatePreview() from app.js at click time
+ * Depends on: jQuery, lang/*.js, core/util.js; updatePreview() from app.js at click time
  * ========================================================================= */
 
-let currentLang = "sv";
+// Only the two-letter language code is stored, locally in this browser; it is never sent anywhere.
+const LANG_STORAGE_KEY = "offline-qr-tools.lang";
+const FALLBACK_LANG = "en";
+
+// localStorage can be unavailable (privacy modes, some file:// setups): never let that break the app.
+function readSavedLang() {
+  try { return window.localStorage.getItem(LANG_STORAGE_KEY); } catch (e) { return null; }
+}
+
+function saveLang(code) {
+  try { window.localStorage.setItem(LANG_STORAGE_KEY, code); } catch (e) { /* not critical */ }
+}
+
+function detectStartLanguage() {
+  let urlLang = null;
+  try { urlLang = new URLSearchParams(window.location.search).get("lang"); } catch (e) { /* ignore */ }
+  return resolveLanguage({
+    available: Object.keys(I18N),
+    urlLang: urlLang,
+    saved: readSavedLang(),
+    browser: navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language],
+    fallback: FALLBACK_LANG
+  });
+}
+
+let currentLang = detectStartLanguage();
 
 function t(key) {
-  return (I18N[currentLang] && I18N[currentLang][key]) || (I18N.sv && I18N.sv[key]) || key;
+  return (I18N[currentLang] && I18N[currentLang][key]) || (I18N[FALLBACK_LANG] && I18N[FALLBACK_LANG][key]) || key;
 }
 
 function applyI18n() {
@@ -68,6 +95,7 @@ function populateLangSelect() {
       .append($("<span></span>").attr("lang", code).text(entry.langName || code));
     btn.on("click", function() {
       currentLang = code;
+      saveLang(code); // a manual choice wins over the browser language next time
       updateLangButton();
       closeLangPopover();
       applyI18n();
