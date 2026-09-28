@@ -12,17 +12,19 @@ permissions:
 jobs:
   test:
     name: Unit and browser tests
-    runs-on: ubuntu-latest
+    # Pinned instead of ubuntu-latest: Playwright's system dependencies are tied to the
+    # distribution, so a silent runner migration could break the browser tests.
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm test
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-report
@@ -31,9 +33,9 @@ jobs:
 
   dependencies:
     name: Vendored libraries (checksums + advisories)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check-Dependencies.ps1
         shell: pwsh
         run: |
