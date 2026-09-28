@@ -5,10 +5,12 @@ contributors working on this repository. Read this file completely before changi
 
 ## What this is
 
-A bilingual (Swedish/English) **Wi-Fi QR code generator** that runs entirely in the browser.
-The user enters a network name (SSID) and password; the app produces a QR code that phones scan
-to join the network, with optional styling (colors, dot shape, logo, frames, ribbons), a local
-"can it be scanned?" self-test, and exports (PNG, SVG, PDF, print layouts).
+Repository: https://github.com/weconnect-tobias/offline-qr-tools (MIT).
+
+A bilingual (Swedish/English) **QR code generator that runs entirely in the browser**. Content
+types: Wi-Fi, web address (URL), text, e-mail, phone, SMS, contact card (vCard 3.0) and location
+(geo). Every type shares the same styling (colors, dot shape, logo, frames, ribbons), the local
+"can it be scanned?" self-test, and the exports (PNG, SVG, PDF, print layouts).
 
 It is a static site: open `index.html` directly from disk or serve the folder from any web server.
 There is **no build step, no backend, no package manager at runtime**.
@@ -34,7 +36,11 @@ even if a user or an issue asks for it. If a request conflicts with a rule, stop
    - Text into the DOM: `.text()` / `textContent` only. Never `.html()` / `innerHTML` with data.
    - Colors: always through `sanitizeHex()` before use (they end up in SVG attributes).
    - Text in SVG: always through `escapeXml()`.
-   - Wi-Fi payload fields: always through `escapeWifi()`.
+   - Wi-Fi payload fields: always through `escapeWifi()`; vCard values through `escapeVcard()`;
+     mailto: parameters through `encodeURIComponent()`.
+   - URLs (URL type and vCard website): only `http:`/`https:` via `parseWebUrl()`. Never allow
+     `javascript:`, `data:`, `file:` etc., and reject `user:password@host` (phishing disguise).
+   - The type in the address (`index.html#url`) is whitelisted against `QR_TYPE_IDS`.
    - Logos: only via the hardened pipeline in `js/app.js` (size cap → magic-byte check PNG/JPEG
      → dimension cap → re-encode to a clean PNG). SVG uploads are not allowed.
 5. **Every user-facing string exists in every language file** (`lang/sv.js`, `lang/en.js`), same keys.
@@ -50,6 +56,7 @@ css/app.css                 All styles. Accessibility notes at the bottom.
 lang/sv.js, lang/en.js      I18N.<code> = { key: "text", … , langName, flagCode }
 js/core/util.js             PURE: escaping, sanitizing, colour maths, isWinAnsi
 js/core/payload.js          PURE: buildWifiPayload(), validatePassword()
+js/core/qr-types.js         PURE: QR_TYPES registry, buildQrPayload(type, input) for every content type
 js/render/scene.js          Scene primitives, text fitting (needs a canvas)
 js/render/templates.js      FRAME_TEMPLATES (none, border, rounded, dashed, card, ribbon, bubble)
 js/render/renderer.js       buildScene(), sceneToCanvas(), sceneToSVG()
@@ -76,7 +83,17 @@ Keep `js/core/*` free of DOM/jQuery so it stays unit-testable in Node.
 
 ## Architecture
 
-### Payload (`js/core/payload.js`: `buildWifiPayload`, `validatePassword`; `escapeWifi` in `js/core/util.js`)
+### Content types (`js/core/qr-types.js`)
+`buildQrPayload(type, input)` returns `{ payload, summary, warning? }` or `{ error, visible? }`
+(`error` is an i18n key; `visible: false` means "not filled in yet", shown silently as the demo).
+`summary` is a short, **non-secret** description used for captions and print layouts (for Wi-Fi it
+is the SSID). Formats: URL → normalised `href`; text → verbatim; e-mail → `mailto:` with encoded
+subject/body; phone → `tel:`; SMS → `SMSTO:<number>:<message>`; contact → vCard 3.0 with CRLF;
+location → `geo:lat,lon`. Payloads are capped at 1000 UTF-8 bytes so codes stay scannable with a
+logo. The UI reads the active panel via `TYPE_READERS` in `js/app.js`; the selected type is kept
+in `currentType` and mirrored in the address (`index.html#vcard`).
+
+### Wi-Fi payload (`js/core/payload.js`: `buildWifiPayload`, `validatePassword`; `escapeWifi` in `js/core/util.js`)
 Format: `WIFI:T:<WPA|WEP|nopass|WPA2-EAP>;S:<ssid>;P:<password>;H:<true|false>;;` with `\ ; , : "`
 escaped. Never prepend anything before `WIFI:` (Android requires it first). Encoding is UTF-8
 (`qrcode.stringToBytes` is switched to the library's UTF-8 encoder at startup). Error correction
@@ -109,6 +126,7 @@ Physical module size is checked (warn < 0.6 mm, fail < 0.4 mm). Text outside Win
 
 ### Events between modules
 - `preview:rendered` — fired by `renderPreview()` after every redraw.
+- `qrtype:changed` — fired by `setQrType()` when the content type changes.
 - `i18n:applied` — fired by `applyI18n()` after a language switch.
 
 ## How to …
@@ -116,6 +134,17 @@ Physical module size is checked (warn < 0.6 mm, fail < 0.4 mm). Text outside Win
 **Add a language:** copy `lang/en.js` to `lang/<code>.js`, translate every value, set
 `langName` (in that language) and `flagCode`, add `assets/flags/<flagCode>.svg`, add a
 `<script src="lang/<code>.js">` line in `index.html`. Nothing else.
+
+**Add a QR content type:**
+1. Add a pure builder to `QR_TYPES` in `js/core/qr-types.js` (validate and escape everything;
+   return a non-secret `summary`) and unit tests in `tests/unit/qr-types.test.js`, including
+   injection attempts.
+2. Add a radio to `.type-picker` and a `.type-panel[data-type=…]` in `index.html`.
+3. Add a reader to `TYPE_READERS`, a demo input to `demoInput()` and error→field mappings to
+   `ERROR_FIELDS` in `js/app.js`.
+4. Add i18n keys in every language: `type<Id>`, field labels, errors, `caption<Id>`,
+   `printHeading<Id>`, `printSummaryLabel<Id>`.
+5. Add an end-to-end case to `tests/e2e/qr-types.spec.js` (the PNG must decode to the payload).
 
 **Add a frame style:** add an entry to `FRAME_TEMPLATES`, an `<option>` in `#frameStyle` and the
 label key in every language file. Use only scene primitives; never draw over the QR block.
@@ -150,11 +179,13 @@ npm test                             # unit + browser tests (~1 min)
 npm run test:unit                    # fast, no browser
 ```
 
-- `tests/unit/` (Node's built-in `node:test`): payload format and escaping, password/SSID rules,
+- `tests/unit/` (Node's built-in `node:test`): every content type's format, escaping and
+  injection resistance, password/SSID rules,
   sanitizing, i18n key parity, **static security rules** (CSP, no inline code, no remote URLs,
   no `innerHTML`/`eval`/`fetch`, print code never reads the password) and vendor checksums.
 - `tests/e2e/` (Playwright): every test runs inside guards that **fail it on any external network
-  request, CSP violation or console error**. Covers the scan self-test, exact decoding of the PNG
+  request, CSP violation or console error**. Covers every content type end to end, dangerous
+  URLs, deep links, the scan self-test, exact decoding of the PNG
   export, every frame × dot shape, password never in SVG/PDF output, logo upload hardening,
   language switch, all print layouts (every QR on the page decoded), `file://` usage and
   WCAG 2.1 A/AA via axe-core.

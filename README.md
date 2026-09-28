@@ -1,13 +1,21 @@
-# Wi-Fi QR Code Generator
+# Offline QR Tools
 
-Create a QR code that lets guests join your Wi-Fi by pointing their phone camera at it —
-without typing the password. Runs entirely in your browser; **nothing is ever sent anywhere**.
+[![CI](https://github.com/weconnect-tobias/offline-qr-tools/actions/workflows/ci.yml/badge.svg)](https://github.com/weconnect-tobias/offline-qr-tools/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Swedish and English UI.
+QR code tools that run entirely in your browser — **nothing is ever sent anywhere**.
+
+Create styled, print-ready QR codes for **Wi-Fi**, **web addresses**, **text**, **e-mail**, **phone**,
+**SMS**, **contact cards (vCard)** and **locations**. Swedish and English UI.
 
 ## Features
 
-- WPA/WPA2/WPA3, WEP, open networks and WPA2-Enterprise (EAP), hidden networks
+- **Wi-Fi**: WPA/WPA2/WPA3, WEP, open networks, WPA2-Enterprise (EAP), hidden networks
+- **Web address**: only `http`/`https`; blocks `javascript:` links and `user@host` phishing tricks,
+  warns about unencrypted `http` and look-alike (punycode) domains
+- **Text**, **e-mail** (recipient, subject, message), **phone**, **SMS**, **contact card**
+  (vCard 3.0) and **location** (coordinates)
+- Direct links to a type, e.g. `index.html#url` or `index.html#vcard`
 - Styling: colors, square/rounded/dot modules, logo, frames, ribbon, speech bubble, card
 - **Scan self-test**: every design is decoded locally and checked byte-for-byte before you use it
 - Export as PNG, SVG or PDF
@@ -19,8 +27,10 @@ Swedish and English UI.
 
 - **No network requests at all.** All code, fonts and icons are local, and a strict
   Content-Security-Policy (`connect-src 'none'`) makes the browser block any attempt.
-- **The password is never printed or shown as text** on anything the app produces. It only exists
-  inside the QR code. (You can optionally print the network name, which is not secret.)
+- **The Wi-Fi password is never printed or shown as text** on anything the app produces. It only
+  exists inside the QR code. (You can optionally print the network name, which is not secret.)
+- Every content type validates and escapes its input so nothing can inject extra fields into the
+  code (e.g. extra e-mail recipients or vCard entries).
 - Uploaded logos are size-checked, type-checked by their file signature and re-encoded before use;
   SVG uploads are rejected.
 - Third-party libraries are vendored and verified by checksum — see [`vendor/README.md`](vendor/README.md).

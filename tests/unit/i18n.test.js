@@ -42,3 +42,13 @@ test("every key referenced in index.html and JS exists", () => {
   const missing = [...used].filter((k) => !(k in I18N.sv));
   assert.deepEqual(missing, []);
 });
+
+test("every QR type has its per-type texts in every language", () => {
+  const types = loadScripts(["js/core/util.js", "js/core/payload.js", "js/core/qr-types.js"], { URL })("QR_TYPE_IDS");
+  for (const type of types) {
+    const id = type.charAt(0).toUpperCase() + type.slice(1);
+    for (const prefix of ["type", "caption", "printHeading", "printSummaryLabel"]) {
+      for (const code of codes) assert.ok(I18N[code][prefix + id], `${code}.${prefix}${id}`);
+    }
+  }
+});

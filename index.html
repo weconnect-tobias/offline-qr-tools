@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'none'; font-src 'none'; object-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'">
-<title>Wi-Fi QR-kodsgenerator</title>
+<title>Offline QR Tools</title>
 <link rel="stylesheet" href="css/app.css">
 <!-- All dependencies are vendored (see vendor/README.md): the app makes no network requests at all. -->
 <script src="vendor/jquery/jquery-4.0.0.min.js"></script>
@@ -22,7 +22,7 @@
 
 <div class="top-bar">
   <div>
-    <h1 data-i18n="title">Wi-Fi QR-kodsgenerator</h1>
+    <h1 data-i18n="title">Offline QR Tools</h1>
     <p class="sub" data-i18n="subtitle">Skapa en QR-kod som ansluter enheter direkt till ditt Wi-Fi-nätverk.</p>
   </div>
   <div class="lang-picker" id="langPicker">
@@ -53,6 +53,20 @@
 </div>
 
 <div class="form-col">
+
+<fieldset class="type-picker">
+  <legend data-i18n="typeLegend">Typ av QR-kod</legend>
+  <label class="type-option"><input type="radio" name="qrType" value="wifi" checked><span data-i18n="typeWifi">Wi-Fi</span></label>
+  <label class="type-option"><input type="radio" name="qrType" value="url"><span data-i18n="typeUrl">Webbadress</span></label>
+  <label class="type-option"><input type="radio" name="qrType" value="text"><span data-i18n="typeText">Text</span></label>
+  <label class="type-option"><input type="radio" name="qrType" value="email"><span data-i18n="typeEmail">E-post</span></label>
+  <label class="type-option"><input type="radio" name="qrType" value="phone"><span data-i18n="typePhone">Telefon</span></label>
+  <label class="type-option"><input type="radio" name="qrType" value="sms"><span data-i18n="typeSms">Sms</span></label>
+  <label class="type-option"><input type="radio" name="qrType" value="vcard"><span data-i18n="typeVcard">Kontakt</span></label>
+  <label class="type-option"><input type="radio" name="qrType" value="geo"><span data-i18n="typeGeo">Plats</span></label>
+</fieldset>
+
+<div class="type-panel" data-type="wifi">
 
 <label for="ssid" data-i18n="ssidLabel">Nätverksnamn (SSID)</label>
 <input type="text" id="ssid" aria-required="true" autocomplete="off" autocapitalize="off" spellcheck="false" data-i18n-placeholder="ssidPlaceholder" placeholder="T.ex. Kontoret-5G">
@@ -107,7 +121,78 @@
   <input type="checkbox" id="hidden">
   <span data-i18n="hiddenNetwork">Dolt nätverk</span>
 </label>
+</div>
 
+<div class="type-panel" data-type="url" hidden>
+  <label for="urlInput" data-i18n="urlLabel">Webbadress</label>
+  <input type="text" id="urlInput" inputmode="url" maxlength="2000" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="urlHint" data-i18n-placeholder="urlPlaceholder" placeholder="t.ex. exempel.se/meny">
+  <p class="hint" id="urlHint" data-i18n="urlHint">Bara http:// och https:// tillåts.</p>
+</div>
+
+<div class="type-panel" data-type="text" hidden>
+  <label for="qrText" data-i18n="qrTextLabel">Text</label>
+  <textarea id="qrText" rows="5" maxlength="1000" autocomplete="off" data-i18n-placeholder="qrTextPlaceholder" placeholder=""></textarea>
+</div>
+
+<div class="type-panel" data-type="email" hidden>
+  <label for="emailTo" data-i18n="emailToLabel">Mottagare</label>
+  <input type="email" id="emailTo" maxlength="254" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="info@exempel.se">
+  <label for="emailSubject" data-i18n="emailSubjectLabel">Ämne (valfritt)</label>
+  <input type="text" id="emailSubject" maxlength="200" autocomplete="off">
+  <label for="emailBody" data-i18n="emailBodyLabel">Meddelande (valfritt)</label>
+  <textarea id="emailBody" rows="4" maxlength="700" autocomplete="off"></textarea>
+</div>
+
+<div class="type-panel" data-type="phone" hidden>
+  <label for="phoneNumber" data-i18n="phoneLabel">Telefonnummer</label>
+  <input type="tel" id="phoneNumber" maxlength="30" autocomplete="off" aria-describedby="phoneHint" data-i18n-placeholder="phonePlaceholder" placeholder="t.ex. +46 70 123 45 67">
+  <p class="hint" id="phoneHint" data-i18n="phoneHint">Använd gärna landskod (+46).</p>
+</div>
+
+<div class="type-panel" data-type="sms" hidden>
+  <label for="smsNumber" data-i18n="smsNumberLabel">Mottagarens nummer</label>
+  <input type="tel" id="smsNumber" maxlength="30" autocomplete="off" aria-describedby="phoneHint" data-i18n-placeholder="phonePlaceholder" placeholder="t.ex. +46 70 123 45 67">
+  <label for="smsMessage" data-i18n="smsMessageLabel">Meddelande (valfritt)</label>
+  <textarea id="smsMessage" rows="4" maxlength="700" autocomplete="off"></textarea>
+</div>
+
+<div class="type-panel" data-type="vcard" hidden>
+  <div class="row">
+    <div><label for="vcFirst" data-i18n="vcFirstLabel">Förnamn</label><input type="text" id="vcFirst" maxlength="60" autocomplete="off"></div>
+    <div><label for="vcLast" data-i18n="vcLastLabel">Efternamn</label><input type="text" id="vcLast" maxlength="60" autocomplete="off"></div>
+  </div>
+  <div class="row">
+    <div><label for="vcOrg" data-i18n="vcOrgLabel">Företag</label><input type="text" id="vcOrg" maxlength="100" autocomplete="off"></div>
+    <div><label for="vcTitle" data-i18n="vcTitleLabel">Titel</label><input type="text" id="vcTitle" maxlength="100" autocomplete="off"></div>
+  </div>
+  <div class="row">
+    <div><label for="vcPhone" data-i18n="vcPhoneLabel">Mobil</label><input type="tel" id="vcPhone" maxlength="30" autocomplete="off"></div>
+    <div><label for="vcEmail" data-i18n="vcEmailLabel">E-post</label><input type="email" id="vcEmail" maxlength="254" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+  </div>
+  <label for="vcUrl" data-i18n="vcUrlLabel">Webbplats</label>
+  <input type="text" id="vcUrl" inputmode="url" maxlength="300" autocomplete="off" autocapitalize="off" spellcheck="false">
+  <label for="vcStreet" data-i18n="vcStreetLabel">Gatuadress</label>
+  <input type="text" id="vcStreet" maxlength="100" autocomplete="off">
+  <div class="row">
+    <div><label for="vcZip" data-i18n="vcZipLabel">Postnummer</label><input type="text" id="vcZip" maxlength="20" autocomplete="off"></div>
+    <div><label for="vcCity" data-i18n="vcCityLabel">Ort</label><input type="text" id="vcCity" maxlength="60" autocomplete="off"></div>
+  </div>
+  <label for="vcCountry" data-i18n="vcCountryLabel">Land</label>
+  <input type="text" id="vcCountry" maxlength="60" autocomplete="off">
+  <label for="vcNote" data-i18n="vcNoteLabel">Anteckning</label>
+  <textarea id="vcNote" rows="2" maxlength="300" autocomplete="off"></textarea>
+  <p class="hint" data-i18n="vcardHint">Allt stannar i QR-koden – ingenting sparas eller skickas.</p>
+</div>
+
+<div class="type-panel" data-type="geo" hidden>
+  <div class="row">
+    <div><label for="geoLat" data-i18n="geoLatLabel">Latitud</label><input type="text" id="geoLat" inputmode="decimal" maxlength="14" autocomplete="off" aria-describedby="geoHint" placeholder="58.9395"></div>
+    <div><label for="geoLon" data-i18n="geoLonLabel">Longitud</label><input type="text" id="geoLon" inputmode="decimal" maxlength="14" autocomplete="off" aria-describedby="geoHint" placeholder="11.1712"></div>
+  </div>
+  <p class="hint" id="geoHint" data-i18n="geoHint">Decimalform, t.ex. 58.9395 och 11.1712.</p>
+</div>
+
+<div class="is-hidden notice" id="typeWarning" role="status"></div>
 <div class="is-hidden notice notice-error" id="formError" role="alert"></div>
 
 <details>
@@ -388,7 +473,7 @@
 
 <label class="inline-check">
   <input type="checkbox" id="printShowSsid" aria-describedby="printCredHint">
-  <span data-i18n="printShowSsidLabel">Skriv ut nätverksnamnet i klartext</span>
+  <span id="printShowLabel" data-i18n="printShowSsidLabel">Skriv ut nätverksnamnet i klartext</span>
 </label>
 
 <p class="hint" id="printCredHint" data-i18n="printHint">Lösenordet skrivs aldrig ut i klartext – det finns bara i QR-koden.</p>
@@ -413,6 +498,7 @@
 <!-- Load order matters: classic scripts share globals (ES modules are blocked on file://). -->
 <script src="js/core/util.js"></script>
 <script src="js/core/payload.js"></script>
+<script src="js/core/qr-types.js"></script>
 <script src="js/render/scene.js"></script>
 <script src="js/render/templates.js"></script>
 <script src="js/render/renderer.js"></script>

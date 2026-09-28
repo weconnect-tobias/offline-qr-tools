@@ -80,24 +80,33 @@ function checkQrContrast() {
 const PASSWORD_ECHO_MIN_LENGTH = 4; // shorter strings match too many ordinary words
 
 function checkPasswordInText() {
-  const pswd = $("#pswd").val();
+  const pswd = currentType === "wifi" ? $("#pswd").val() : "";
   const visibleText = ($("#titleText").val() + "\n" + $("#captionText").val()).toLowerCase();
   const leaked = $("#textStyle").val() !== "none" && pswd.length >= PASSWORD_ECHO_MIN_LENGTH &&
     visibleText.indexOf(pswd.toLowerCase()) >= 0;
   $("#textPasswordWarning").toggle(leaked);
 }
 
-// Shows a translatable message; the data-i18n key keeps it in sync on language change.
-const ERROR_FIELDS = { errSsidTooLong: "#ssid", errPswdWpa: "#pswd", errPswdWep: "#pswd" };
+// Which field an error belongs to, per QR type (several types share error keys).
+const ERROR_FIELDS = {
+  wifi: { errSsidTooLong: "#ssid", errPswdWpa: "#pswd", errPswdWep: "#pswd" },
+  url: { errUrlInvalid: "#urlInput", errUrlScheme: "#urlInput", errUrlCredentials: "#urlInput", errUrlTooLong: "#urlInput" },
+  text: { errTextTooLong: "#qrText" },
+  email: { errEmailInvalid: "#emailTo", errTextTooLong: "#emailBody" },
+  phone: { errPhoneInvalid: "#phoneNumber" },
+  sms: { errPhoneInvalid: "#smsNumber", errTextTooLong: "#smsMessage" },
+  vcard: { errPhoneInvalid: "#vcPhone", errEmailInvalid: "#vcEmail", errUrlInvalid: "#vcUrl", errUrlScheme: "#vcUrl", errUrlCredentials: "#vcUrl", errUrlTooLong: "#vcUrl", errTextTooLong: "#vcNote" },
+  geo: { errGeoInvalid: "#geoLat" }
+};
 
 // Marks the offending field invalid and points it at the message, so screen readers
 // announce the reason when the field is focused.
 function setFieldError(key) {
-  $("#ssid, #pswd").removeAttr("aria-invalid").each(function() {
+  $(".type-panel input, .type-panel textarea").removeAttr("aria-invalid").each(function() {
     const ids = ($(this).attr("aria-describedby") || "").split(" ").filter(function(id) { return id && id !== "formError"; });
     if (ids.length) $(this).attr("aria-describedby", ids.join(" ")); else $(this).removeAttr("aria-describedby");
   });
-  const field = key && ERROR_FIELDS[key];
+  const field = key && (ERROR_FIELDS[currentType] || {})[key];
   if (field) {
     const ids = ($(field).attr("aria-describedby") || "").split(" ").filter(Boolean).concat("formError");
     $(field).attr({ "aria-invalid": "true", "aria-describedby": ids.join(" ") });
@@ -135,12 +144,19 @@ function getExportSize() {
   return parseInt(sel, 10);
 }
 
+// Default caption per type, e.g. "Scan to open example.com". Built from the summary,
+// which never contains a secret (see core/qr-types.js).
+function defaultCaption() {
+  const key = "caption" + currentType.charAt(0).toUpperCase() + currentType.slice(1);
+  return currentSummary ? t(key).replace("{x}", currentSummary) : "";
+}
+
 function getRenderOpts() {
   const textStyle = $("#textStyle").val();
   const showText = textStyle !== "none";
   let caption = "";
   if (showText) {
-    caption = $("#captionText").val().trim() || (currentSSID ? t("scanToConnect") + currentSSID : "");
+    caption = $("#captionText").val().trim() || defaultCaption();
   }
   const scale = parseFloat($("#textSize").val());
   const shape = $("#qrShape").val();
@@ -154,7 +170,7 @@ function getRenderOpts() {
     caption: caption,
     textColorOverride: showText && !$("#autoTextColor").is(":checked") ? sanitizeHex($("#textColor").val(), "#ffffff") : null,
     textSizeScale: scale >= 0.5 && scale <= 3 ? scale : 1.2,
-    wifiIcon: $("#wifiIcon").is(":checked"),
+    wifiIcon: currentType === "wifi" && $("#wifiIcon").is(":checked"),
     qrShape: ["square", "rounded", "dots"].indexOf(shape) >= 0 ? shape : "square",
     qrColor: sanitizeHex($("#qrColor").val(), "#000000"),
     qrBgColor: sanitizeHex($("#qrBgColor").val(), "#ffffff"),
@@ -165,30 +181,82 @@ function getRenderOpts() {
   };
 }
 
-/* ---- Payload ------------------------------------------------------------ */
+/* ---- QR type and payload ------------------------------------------------ */
 
-// Reads the form; all rules live in the pure buildWifiPayload() (core/payload.js).
+// Reads the active panel. All validation and encoding lives in the pure builders
+// (core/qr-types.js and core/payload.js).
+const TYPE_READERS = {
+  wifi: function() {
+    return {
+      ssid: $("#ssid").val(), password: $("#pswd").val(), security: $("#security").val(),
+      hidden: $("#hidden").is(":checked"), eapMethod: $("#eapMethod").val(), phase2: $("#phase2").val(),
+      anonymous: $("#anonIdentity").is(":checked"), identity: $("#identity").val()
+    };
+  },
+  url: function() { return { url: $("#urlInput").val() }; },
+  text: function() { return { text: $("#qrText").val() }; },
+  email: function() { return { to: $("#emailTo").val(), subject: $("#emailSubject").val(), body: $("#emailBody").val() }; },
+  phone: function() { return { number: $("#phoneNumber").val() }; },
+  sms: function() { return { number: $("#smsNumber").val(), message: $("#smsMessage").val() }; },
+  vcard: function() {
+    return {
+      firstName: $("#vcFirst").val(), lastName: $("#vcLast").val(), org: $("#vcOrg").val(), title: $("#vcTitle").val(),
+      phone: $("#vcPhone").val(), email: $("#vcEmail").val(), url: $("#vcUrl").val(), street: $("#vcStreet").val(),
+      zip: $("#vcZip").val(), city: $("#vcCity").val(), country: $("#vcCountry").val(), note: $("#vcNote").val()
+    };
+  },
+  geo: function() { return { lat: $("#geoLat").val(), lon: $("#geoLon").val() }; }
+};
+
+// Example content shown until the user has filled in the form.
+function demoInput(type) {
+  switch (type) {
+    case "wifi": return { ssid: t("demoSsid"), password: "demo1234", security: "WPA" };
+    case "url": return { url: "example.com" };
+    case "text": return { text: t("demoText") };
+    case "email": return { to: "info@example.com" };
+    case "phone": case "sms": return { number: "+46 70 123 45 67" };
+    case "vcard": return { firstName: "Anna", lastName: "Svensson" };
+    case "geo": return { lat: "58.9395", lon: "11.1712" };
+  }
+  return {};
+}
+
 function buildPayload() {
-  return buildWifiPayload({
-    ssid: $("#ssid").val(),
-    password: $("#pswd").val(),
-    security: $("#security").val(),
-    hidden: $("#hidden").is(":checked"),
-    eapMethod: $("#eapMethod").val(),
-    phase2: $("#phase2").val(),
-    anonymous: $("#anonIdentity").is(":checked"),
-    identity: $("#identity").val()
-  });
+  return buildQrPayload(currentType, TYPE_READERS[currentType]());
+}
+
+function setQrType(type, options) {
+  // Only known ids are accepted; anything else in the address (e.g. injected markup) is replaced.
+  if (QR_TYPE_IDS.indexOf(type) < 0) { type = "wifi"; options = { keepHash: false }; }
+  currentType = type;
+  $("input[name=qrType][value=" + type + "]").prop("checked", true);
+  $(".type-panel").each(function() { this.hidden = this.getAttribute("data-type") !== type; });
+  // Deep link (index.html#url) without reloading; history.replaceState works on file:// too.
+  if (!(options && options.keepHash) && location.hash !== "#" + type) {
+    try { history.replaceState(null, "", "#" + type); } catch (e) { /* not critical */ }
+  }
+  $(document).trigger("qrtype:changed");
+}
+
+// Wi-Fi-only options are hidden for other types.
+$(document).on("qrtype:changed", function() {
+  $("#wifiIcon").closest("label").toggle(currentType === "wifi");
+});
+
+function fileBaseName() {
+  return "qr-" + currentType;
 }
 
 function showDemo() {
   try {
+    const demoResult = buildQrPayload(currentType, demoInput(currentType));
     const demo = qrcode(0, "H");
-    demo.addData("WIFI:T:WPA;S:" + escapeWifi(t("demoSsid")) + ";P:demo1234;;");
+    demo.addData(demoResult.payload);
     demo.make();
     currentQR = demo;
     currentPayload = null;
-    currentSSID = t("demoSsid");
+    currentSummary = demoResult.summary;
     isDemo = true;
     $("#demoLabel").show();
     $("#download").prop("disabled", true);
@@ -203,6 +271,7 @@ function updatePreview() {
   checkPasswordInText();
   const result = buildPayload();
 
+  showMessage("#typeWarning", result.error ? null : result.warning);
   if (result.error) {
     showMessage("#formError", result.visible ? result.error : null);
     setFieldError(result.visible ? result.error : null);
@@ -229,7 +298,7 @@ function updatePreview() {
 
   currentQR = qr;
   currentPayload = result.payload;
-  currentSSID = result.ssid;
+  currentSummary = result.summary;
   isDemo = false;
   $("#demoLabel").hide();
   renderPreview();
@@ -244,7 +313,12 @@ setupColorPicker("textColor");
 
 // Free-text fields are debounced; discrete controls update immediately.
 const updatePreviewDebounced = debounce(updatePreview, 150);
-$("#ssid, #pswd, #identity, #titleText, #captionText").on("input", updatePreviewDebounced);
+$(".type-panel").on("input", "input:not([type=checkbox]), textarea", updatePreviewDebounced);
+$("#titleText, #captionText").on("input", updatePreviewDebounced);
+$("input[name=qrType]").on("change", function() {
+  setQrType(this.value);
+  updatePreview();
+});
 $("#security, #eapMethod, #phase2, #anonIdentity, #hidden, #qrShape, #qrColor, #qrBgColor, #frameStyle, #frameColor, " +
   "#textStyle, #textBgColor, #textSize, #autoTextColor, #textColor, #wifiIcon, #logoSize, #logoBgWhite").on("input change", updatePreview);
 
@@ -253,7 +327,17 @@ $(document).on("i18n:applied", function() { $("#logoPreview img").attr("alt", t(
 // Screen readers announce "20 %" instead of a bare number.
 $("#logoSize").on("input change", function() { $(this).attr("aria-valuetext", $(this).val() + " %"); });
 
+// Back/forward buttons and links to another #type in the same tab.
+$(window).on("hashchange", function() {
+  const type = location.hash.slice(1);
+  if (type !== currentType) {
+    setQrType(type, { keepHash: true });
+    updatePreview();
+  }
+});
+
 $(document).ready(function() {
+  setQrType(location.hash.slice(1), { keepHash: true });
   applyI18n();
   updatePreview();
 });
@@ -278,7 +362,7 @@ $("#download").on("click", function() {
   if (format === "svg") {
     const svgStr = sceneToSVG(buildScene(currentQR, getExportSize(), opts));
     const url = URL.createObjectURL(new Blob([svgStr], { type: "image/svg+xml" }));
-    triggerDownload(url, "wifi-qr.svg");
+    triggerDownload(url, fileBaseName() + ".svg");
     setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
   } else if (format === "pdf") {
     if (!window.jspdf) {
@@ -297,9 +381,9 @@ $("#download").on("click", function() {
     // "SLOW" = maximum deflate. Without an explicit compression jsPDF 4 embeds the
     // bitmap uncompressed (~7.7 MB for a 1600 px render instead of ~25 kB).
     doc.addImage(dataUrl, "PNG", (pageW - widthMM) / 2, (pageH - heightMM) / 2, widthMM, heightMM, undefined, "SLOW");
-    doc.save("wifi-qr.pdf");
+    doc.save(fileBaseName() + ".pdf");
   } else {
     const canvas = sceneToCanvas(buildScene(currentQR, getExportSize(), opts));
-    triggerDownload(canvas.toDataURL("image/png"), "wifi-qr.png");
+    triggerDownload(canvas.toDataURL("image/png"), fileBaseName() + ".png");
   }
 });

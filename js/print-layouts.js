@@ -108,6 +108,11 @@ function lineHeightMm(pt) {
   return pt * PT_TO_MM * 1.25;
 }
 
+// "Wifi", "Url", … — suffix for per-type i18n keys (printHeadingUrl, printSummaryLabelUrl, …).
+function typeSuffix() {
+  return currentType.charAt(0).toUpperCase() + currentType.slice(1);
+}
+
 /* -------------------------------------------------------------------------
  * Content shared by all layouts
  * ------------------------------------------------------------------------- */
@@ -119,9 +124,11 @@ function getPrintContent() {
   return {
     layout: ["sign", "tent", "cards"].indexOf($("#printLayout").val()) >= 0 ? $("#printLayout").val() : "sign",
     paper: PAPER_SIZES[$("#printPaper").val()] ? $("#printPaper").val() : "a4",
-    heading: opts.title || t("printDefaultHeading"),
+    heading: opts.title || t("printHeading" + typeSuffix()),
     instructions: $("#printInstructions").is(":checked"),
-    ssid: $("#printShowSsid").is(":checked") ? $("#ssid").val().trim() : ""
+    // The summary is the SSID for Wi-Fi, the address for a URL, etc. — never a secret.
+    summary: $("#printShowSsid").is(":checked") ? currentSummary : "",
+    summaryLabel: t("printSummaryLabel" + typeSuffix())
   };
 }
 
@@ -182,7 +189,10 @@ function buildTextBlock(content, colW, sizes, align) {
   }
 
   if (content.instructions && sizes.instructionPt) {
-    const steps = sizes.shortInstructions ? [t("printScanShort")] : [t("printStep1"), t("printStep2"), t("printStep3")];
+    const wifi = currentType === "wifi";
+    const steps = sizes.shortInstructions
+      ? [t(wifi ? "printScanShort" : "printScanShortOpen")]
+      : [t("printStep1"), t("printStep2"), t(wifi ? "printStep3" : "printStep3Open")];
     steps.forEach(function(step) {
       const s = fitLine(step, sizes.instructionPt, sizes.instructionPt * 0.6, colW, "helvetica", false);
       y += lineHeightMm(s.pt);
@@ -192,7 +202,7 @@ function buildTextBlock(content, colW, sizes, align) {
   }
 
   const creds = [];
-  if (content.ssid) creds.push({ label: t("printSsidLabel"), value: content.ssid });
+  if (content.summary) creds.push({ label: content.summaryLabel, value: content.summary });
   if (creds.length) {
     const pad = sizes.credPt * PT_TO_MM * 0.9;
     const innerW = colW - pad * 2;
@@ -259,7 +269,7 @@ function layoutSign(content, paper) {
   const aspect = sceneAspect();
 
   const head = buildTextBlock({ heading: content.heading }, colW, { headingPt: 40, gapMm: 8 }, "center");
-  const tail = buildTextBlock({ instructions: content.instructions, ssid: content.ssid },
+  const tail = buildTextBlock({ instructions: content.instructions, summary: content.summary, summaryLabel: content.summaryLabel },
     Math.min(colW, 150), { instructionPt: 15, credPt: 16, gapMm: 8 }, "center");
 
   const maxArtH = H - margin * 2 - head.height - tail.height - 16;
@@ -542,10 +552,20 @@ function downloadPrintPdf() {
   if (!window.jspdf) { alert(t("pdfLibError")); return; }
   if ((lastScanStatus === "fail" || lastPrintStatus === "fail") && !window.confirm(t("printFailConfirm"))) return;
   const page = buildPrintPage();
-  pageToPdf(page).save("wifi-qr-" + page.layout + ".pdf");
+  pageToPdf(page).save("qr-" + currentType + "-" + page.layout + ".pdf");
 }
 
 $("#printSection").on("toggle", renderPrintPreview);
 $("#printLayout, #printPaper, #printInstructions, #printShowSsid").on("change", renderPrintPreview);
 $(document).on("preview:rendered i18n:applied", renderPrintPreviewDebounced);
 $("#printDownload").on("click", downloadPrintPdf);
+
+// Option label and hint follow the QR type ("Print the network name" vs "Print the content").
+function updatePrintLabels() {
+  const wifi = currentType === "wifi";
+  $("#printShowLabel").attr("data-i18n", wifi ? "printShowSsidLabel" : "printShowSummaryLabel")
+    .text(t(wifi ? "printShowSsidLabel" : "printShowSummaryLabel"));
+  $("#printCredHint").attr("data-i18n", wifi ? "printHint" : "printHintGeneric")
+    .text(t(wifi ? "printHint" : "printHintGeneric"));
+}
+$(document).on("qrtype:changed i18n:applied", updatePrintLabels);

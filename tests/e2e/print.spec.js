@@ -46,7 +46,7 @@ for (const layout of ["sign", "tent", "cards"]) {
     expect(result.moduleMm).toBeGreaterThan(0.4);
 
     const pdf = await download(page, () => page.click("#printDownload"));
-    expect(pdf.name).toBe(`wifi-qr-${layout}.pdf`);
+    expect(pdf.name).toBe(`qr-wifi-${layout}.pdf`);
     const text = pdfSearchableText(pdf.data);
     expect(text).toContain(Buffer.from(SSID, "latin1").toString("latin1")); // opted-in network name
     expect(text).not.toContain(PASSWORD);

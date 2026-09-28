@@ -8,7 +8,8 @@
  * ========================================================================= */
 
 let currentQR = null;
-let currentSSID = "";
+let currentType = "wifi";
+let currentSummary = ""; // short, non-secret description of the content (never the Wi-Fi password)
 let isDemo = true;
 let logoImage = null;
 let logoDataUrl = null;

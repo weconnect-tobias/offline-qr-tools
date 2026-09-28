@@ -1,8 +1,16 @@
 {
-  "name": "wifi-qr-code-generator",
+  "name": "offline-qr-tools",
   "version": "1.0.0",
   "private": true,
   "license": "MIT",
+  "homepage": "https://github.com/weconnect-tobias/offline-qr-tools#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/weconnect-tobias/offline-qr-tools.git"
+  },
+  "bugs": {
+    "url": "https://github.com/weconnect-tobias/offline-qr-tools/issues"
+  },
   "description": "Offline Wi-Fi QR code generator. The app itself has no runtime dependencies; this file only defines the development test tooling.",
   "scripts": {
     "test": "npm run test:unit && npm run test:e2e",

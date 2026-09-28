@@ -24,7 +24,7 @@ test("valid network passes the scan self-test and the PNG decodes to the exact p
   await openAllSections(page);
   await page.selectOption("#exportFormat", "png");
   const png = await download(page, () => page.click("#download"));
-  expect(png.name).toBe("wifi-qr.png");
+  expect(png.name).toBe("qr-wifi.png");
   expect(await decodePng(page, png.data)).toBe(PAYLOAD);
 });
 
