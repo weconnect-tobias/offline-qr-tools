@@ -199,12 +199,20 @@
 <summary data-i18n="qrStyleTitle">QR-kodstil</summary>
 <div class="details-body">
 
+<div class="preset-row" role="group" aria-labelledby="presetsCaption">
+  <span class="field-label" id="presetsCaption" data-i18n="presetsLabel">Snabbstilar</span>
+  <button type="button" class="small-btn" data-preset="classic" data-i18n="presetClassic">Klassisk</button>
+  <button type="button" class="small-btn" data-preset="modern" data-i18n="presetModern">Modern</button>
+  <button type="button" class="small-btn" data-preset="elegant" data-i18n="presetElegant">Elegant</button>
+  <button type="button" class="small-btn" data-preset="playful" data-i18n="presetPlayful">Lekfull</button>
+</div>
+
+<!-- Options are generated from the registries in js/render/shapes.js. -->
 <label for="qrShape" data-i18n="qrShapeLabel">Punktform</label>
-<select id="qrShape">
-  <option value="square" selected data-i18n="shapeSquare">Fyrkanter</option>
-  <option value="rounded" data-i18n="shapeRounded">Rundade fyrkanter</option>
-  <option value="dots" data-i18n="shapeDots">Cirklar</option>
-</select>
+<select id="qrShape" data-registry="MODULE_SHAPES"></select>
+
+<label for="eyeStyle" data-i18n="eyeStyleLabel">Hörnstil</label>
+<select id="eyeStyle" data-registry="EYE_STYLES"></select>
 
 <div class="row">
   <div>
@@ -235,6 +243,50 @@
       </div>
     </div>
   </div>
+</div>
+
+<label for="gradient" data-i18n="gradientLabel">Färgövergång</label>
+<select id="gradient">
+  <option value="none" selected data-i18n="gradNone">Ingen (en färg)</option>
+  <option value="vertical" data-i18n="gradVertical">Uppifrån och ned</option>
+  <option value="horizontal" data-i18n="gradHorizontal">Från vänster till höger</option>
+  <option value="diagonal" data-i18n="gradDiagonal">Diagonal</option>
+  <option value="radial" data-i18n="gradRadial">Från mitten</option>
+</select>
+
+<div class="is-hidden" id="gradientColor2Wrap">
+    <span class="field-label" id="gradientColor2Caption" data-i18n="gradientColor2Label">Andra färgen</span>
+    <div class="color-picker" id="gradientColor2Picker">
+      <button type="button" class="color-swatch-btn" id="gradientColor2Swatch"></button>
+      <input type="hidden" id="gradientColor2" value="#0369a1">
+      <div class="color-popover" id="gradientColor2Popover" role="group" aria-labelledby="gradientColor2Caption">
+        <div class="swatch-grid" id="gradientColor2Grid"></div>
+        <div class="hex-input-row">
+          <span class="hex-prefix" aria-hidden="true">#</span>
+          <input type="text" id="gradientColor2Hex" maxlength="6" placeholder="0369a1" autocomplete="off" spellcheck="false">
+        </div>
+      </div>
+    </div>
+</div>
+
+<label class="inline-check">
+  <input type="checkbox" id="customEyeColor">
+  <span data-i18n="customEyeColorLabel">Egen färg på hörnen</span>
+</label>
+
+<div class="is-hidden" id="eyeColorWrap">
+    <span class="field-label" id="eyeColorCaption" data-i18n="eyeColorLabel">Hörnfärg</span>
+    <div class="color-picker" id="eyeColorPicker">
+      <button type="button" class="color-swatch-btn" id="eyeColorSwatch"></button>
+      <input type="hidden" id="eyeColor" value="#e11d48">
+      <div class="color-popover" id="eyeColorPopover" role="group" aria-labelledby="eyeColorCaption">
+        <div class="swatch-grid" id="eyeColorGrid"></div>
+        <div class="hex-input-row">
+          <span class="hex-prefix" aria-hidden="true">#</span>
+          <input type="text" id="eyeColorHex" maxlength="6" placeholder="e11d48" autocomplete="off" spellcheck="false">
+        </div>
+      </div>
+    </div>
 </div>
 
 <div class="is-hidden notice" id="contrastWarning" role="status" data-i18n="contrastWarning">
@@ -288,6 +340,7 @@
   <option value="dashed" data-i18n="frameDashed">Streckad ram (klipp ut)</option>
   <option value="card" data-i18n="frameCard">Kort (färgad ram med text)</option>
   <option value="ribbon" data-i18n="frameRibbon">Banderoll under QR-koden</option>
+  <option value="polaroid" data-i18n="framePolaroid">Polaroid</option>
   <option value="bubble" data-i18n="frameBubble">Pratbubbla ("Skanna mig!")</option>
 </select>
 
@@ -500,6 +553,7 @@
 <script src="js/core/payload.js"></script>
 <script src="js/core/qr-types.js"></script>
 <script src="js/render/scene.js"></script>
+<script src="js/render/shapes.js"></script>
 <script src="js/render/templates.js"></script>
 <script src="js/render/renderer.js"></script>
 <script src="js/ui/state.js"></script>

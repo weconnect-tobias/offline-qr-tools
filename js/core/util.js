@@ -65,6 +65,24 @@ function f(n) {
   return Math.round(n * 100) / 100;
 }
 
+// Rounded rectangle as an SVG path. r is a number or [tl, tr, br, bl].
+function roundRectD(x, y, w, h, r) {
+  const radii = Array.isArray(r) ? r : [r, r, r, r];
+  const max = Math.min(w, h) / 2;
+  const tl = Math.max(0, Math.min(radii[0] || 0, max));
+  const tr = Math.max(0, Math.min(radii[1] || 0, max));
+  const br = Math.max(0, Math.min(radii[2] || 0, max));
+  const bl = Math.max(0, Math.min(radii[3] || 0, max));
+  const arc = function(rad, ex, ey) {
+    return rad ? "A" + f(rad) + " " + f(rad) + " 0 0 1 " + f(ex) + " " + f(ey) : "";
+  };
+  return "M" + f(x + tl) + " " + f(y) +
+    "H" + f(x + w - tr) + arc(tr, x + w, y + tr) +
+    "V" + f(y + h - br) + arc(br, x + w - br, y + h) +
+    "H" + f(x + bl) + arc(bl, x, y + h - bl) +
+    "V" + f(y + tl) + arc(tl, x + tl, y) + "Z";
+}
+
 function debounce(fn, ms) {
   let timer = null;
   return function() {

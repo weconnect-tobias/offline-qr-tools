@@ -9,8 +9,8 @@ Repository: https://github.com/weconnect-tobias/offline-qr-tools (MIT).
 
 A bilingual (Swedish/English) **QR code generator that runs entirely in the browser**. Content
 types: Wi-Fi, web address (URL), text, e-mail, phone, SMS, contact card (vCard 3.0) and location
-(geo). Every type shares the same styling (colors, dot shape, logo, frames, ribbons), the local
-"can it be scanned?" self-test, and the exports (PNG, SVG, PDF, print layouts).
+(geo). Every type shares the same styling (colors, gradients, dot and corner shapes, logo,
+frames, ribbons), the local "can it be scanned?" self-test, and the exports (PNG, SVG, PDF, print layouts).
 
 It is a static site: open `index.html` directly from disk or serve the folder from any web server.
 There is **no build step, no backend, no package manager at runtime**.
@@ -58,7 +58,8 @@ js/core/util.js             PURE: escaping, sanitizing, colour maths, isWinAnsi
 js/core/payload.js          PURE: buildWifiPayload(), validatePassword()
 js/core/qr-types.js         PURE: QR_TYPES registry, buildQrPayload(type, input) for every content type
 js/render/scene.js          Scene primitives, text fitting (needs a canvas)
-js/render/templates.js      FRAME_TEMPLATES (none, border, rounded, dashed, card, ribbon, bubble)
+js/render/shapes.js         PURE: MODULE_SHAPES, EYE_STYLES, GRADIENT_TYPES, qrPaint()
+js/render/templates.js      FRAME_TEMPLATES (none, border, rounded, dashed, card, polaroid, ribbon, bubble)
 js/render/renderer.js       buildScene(), sceneToCanvas(), sceneToSVG()
 js/ui/state.js              Shared mutable UI state (currentQR, currentPayload, …)
 js/ui/i18n.js               t(), applyI18n(), language picker
@@ -77,7 +78,8 @@ tests/support/              Test helpers (VM script loader, static server)
 
 Script load order (classic scripts sharing globals — ES modules are blocked on `file://`,
 and the app must work when `index.html` is double-clicked):
-`vendor/*` → `lang/*.js` → `js/core/*` → `js/render/*` → `js/ui/state.js` → `js/ui/i18n.js` →
+`vendor/*` → `lang/*.js` → `js/core/*` → `js/render/scene.js` → `js/render/shapes.js` →
+`js/render/templates.js` → `js/render/renderer.js` → `js/ui/state.js` → `js/ui/i18n.js` →
 `js/ui/color-picker.js` → `js/ui/scan-check.js` → `js/ui/logo.js` → `js/app.js` → `js/print-layouts.js`.
 Keep `js/core/*` free of DOM/jQuery so it stays unit-testable in Node.
 
@@ -108,8 +110,25 @@ flat list of primitives: `rect`, `path` (SVG path syntax), `circle`, `text`, `im
 written once. The QR block (modules + 4-module quiet zone) is drawn by the core, never by a
 template, and text overlapping it is dropped — templates cannot break scannability.
 
+### QR shapes and colours (`js/render/shapes.js`)
+- `MODULE_SHAPES`: square, rounded, dots, fluid, classy, diamond, vlines, hlines. Each returns
+  SVG path data for all data modules (`pathD(isDark, n, x0, y0, cell)`); neighbour-aware shapes
+  query `isDark(row ± 1, col ± 1)`, which is `false` outside the code and inside the eyes.
+- `EYE_STYLES`: the three finder patterns as **tested pairs** of an `EYE_FRAME_SHAPES` ring and an
+  `EYE_BALL_SHAPES` centre (square, rounded, roundedDot, circle, leaf), drawn with `fillRule:
+  "evenodd"`. They are pairs on purpose: a square ring around a round centre (and similar
+  mixes) broke decoding for 30–90 % of the tested codes when combined with dots or lines.
+- `qrPaint()` returns a flat colour or a gradient object (`linear`/`radial`, user-space
+  coordinates spanning the code) that both renderers understand. Optional `eyeColor` paints
+  the eyes separately. The contrast warning checks every colour in use against the background.
+- Measured, not guessed: the dot radius (0.5), diamond radius (0.68), round centre (1.65 modules)
+  and line inset (0.05) were tuned with the scan self-test over many sizes and payloads. Do not
+  shrink them for looks without re-running the tests.
+- Deliberately not offered: whole-code silhouettes (hearts, stars, animals) and heavily
+  decorated eyes — they depend on error correction to scan at all.
+
 ### Frame templates (`FRAME_TEMPLATES` in `js/render/templates.js`)
-`none`, `border`, `rounded`, `dashed`, `card`, `ribbon`, `bubble`. Each has
+`none`, `border`, `rounded`, `dashed`, `card`, `polaroid`, `ribbon`, `bubble`. Each has
 `build(M, o, tx)` → `{ h, block, back, front, pageColor }`. `ownsText: true` means the template
 decides where text goes.
 
@@ -152,6 +171,12 @@ Never store form content (SSID, password, contact details…) in `localStorage` 
    `printHeading<Id>`, `printSummaryLabel<Id>`.
 5. Add an end-to-end case to `tests/e2e/qr-types.spec.js` (the PNG must decode to the payload).
 
+**Add a dot shape or corner style:** add an entry to `MODULE_SHAPES` or `EYE_STYLES` in
+`js/render/shapes.js` with a `labelKey`, and that key to every language file. The select
+options, whitelist and scan tests pick it up automatically; keep the shape only if
+`npm test` (every shape × corner style × gradient is decoded) passes without loosening it.
+Presets live in `QR_STYLE_PRESETS` in `js/app.js`.
+
 **Add a frame style:** add an entry to `FRAME_TEMPLATES`, an `<option>` in `#frameStyle` and the
 label key in every language file. Use only scene primitives; never draw over the QR block.
 
@@ -192,7 +217,7 @@ npm run test:unit                    # fast, no browser
 - `tests/e2e/` (Playwright): every test runs inside guards that **fail it on any external network
   request, CSP violation or console error**. Covers every content type end to end, dangerous
   URLs, deep links, the scan self-test, exact decoding of the PNG
-  export, every frame × dot shape, password never in SVG/PDF output, logo upload hardening,
+  export, every frame × dot shape and every dot shape × corner style × gradient, password never in SVG/PDF output, logo upload hardening,
   language switch, all print layouts (every QR on the page decoded), `file://` usage and
   WCAG 2.1 A/AA via axe-core.
 - CI (`.github/workflows/ci.yml`) runs the tests plus `tools/Check-Dependencies.ps1` on every

@@ -66,13 +66,65 @@ function updateStyleVisibility() {
 $("#frameStyle, #textStyle").on("change", updateStyleVisibility);
 updateStyleVisibility();
 
+/* ---- QR style: shape registries, gradient, eye colour, presets ---------- */
+
+const SHAPE_REGISTRIES = { MODULE_SHAPES: MODULE_SHAPES, EYE_STYLES: EYE_STYLES };
+
+// Options come from the registries, so a new shape needs no HTML change. Labels are
+// filled in by applyI18n() through data-i18n.
+$("select[data-registry]").each(function() {
+  const select = $(this);
+  const registry = SHAPE_REGISTRIES[select.attr("data-registry")] || {};
+  Object.keys(registry).forEach(function(id) {
+    $("<option></option>").val(id).attr("data-i18n", registry[id].labelKey).text(registry[id].labelKey).appendTo(select);
+  });
+  select.val("square");
+});
+
+function updateQrStyleVisibility() {
+  $("#gradientColor2Wrap").toggle($("#gradient").val() !== "none");
+  $("#eyeColorWrap").toggle($("#customEyeColor").is(":checked"));
+}
+$("#gradient, #customEyeColor").on("change", updateQrStyleVisibility);
+updateQrStyleVisibility();
+
+// Presets only set shape/gradient controls; colours stay the user's choice.
+const QR_STYLE_PRESETS = {
+  classic: { qrShape: "square", eyeStyle: "square", gradient: "none" },
+  modern: { qrShape: "fluid", eyeStyle: "rounded", gradient: "none" },
+  elegant: { qrShape: "classy", eyeStyle: "leaf", gradient: "diagonal" },
+  playful: { qrShape: "dots", eyeStyle: "circle", gradient: "radial" }
+};
+
+$("[data-preset]").on("click", function() {
+  const preset = QR_STYLE_PRESETS[$(this).attr("data-preset")];
+  if (!preset) return;
+  Object.keys(preset).forEach(function(id) { $("#" + id).val(preset[id]); });
+  updateQrStyleVisibility();
+  updatePreview();
+});
+
+// Polaroid paper looks wrong in the default near-black; switch to white once if untouched.
+$("#frameStyle").on("change", function() {
+  if ($(this).val() === "polaroid" && $("#frameColor").val() === "#1a1a1a") {
+    $("#frameColor").val("#ffffff").trigger("change");
+  }
+});
+
 $("#autoTextColor").on("change", function() {
   $("#manualTextColorWrap").toggle(!$(this).is(":checked"));
 });
 
+// Every colour the modules or eyes can be drawn in must stand out from the background,
+// including both ends of a gradient and a custom eye colour.
 function checkQrContrast() {
-  const diff = Math.abs(relativeLuminance($("#qrColor").val()) - relativeLuminance($("#qrBgColor").val()));
-  $("#contrastWarning").toggle(diff < 0.4);
+  const o = getRenderOpts();
+  const inks = [o.qrColor];
+  if (o.gradient !== "none") inks.push(o.gradientColor2);
+  if (o.eyeColor) inks.push(o.eyeColor);
+  const bg = relativeLuminance(o.qrBgColor);
+  const weak = inks.some(function(ink) { return Math.abs(relativeLuminance(ink) - bg) < 0.4; });
+  $("#contrastWarning").toggle(weak);
 }
 
 // SECURITY: the password must never appear as readable text on any output. The app never
@@ -151,6 +203,11 @@ function defaultCaption() {
   return currentSummary ? t(key).replace("{x}", currentSummary) : "";
 }
 
+// Select values are whitelisted against the shape registries (js/render/shapes.js).
+function registryValue(registry, value) {
+  return Object.prototype.hasOwnProperty.call(registry, value) ? value : "square";
+}
+
 function getRenderOpts() {
   const textStyle = $("#textStyle").val();
   const showText = textStyle !== "none";
@@ -159,7 +216,7 @@ function getRenderOpts() {
     caption = $("#captionText").val().trim() || defaultCaption();
   }
   const scale = parseFloat($("#textSize").val());
-  const shape = $("#qrShape").val();
+  const qrColor = sanitizeHex($("#qrColor").val(), "#000000");
 
   return {
     frameStyle: FRAME_TEMPLATES[$("#frameStyle").val()] ? $("#frameStyle").val() : "none",
@@ -171,8 +228,12 @@ function getRenderOpts() {
     textColorOverride: showText && !$("#autoTextColor").is(":checked") ? sanitizeHex($("#textColor").val(), "#ffffff") : null,
     textSizeScale: scale >= 0.5 && scale <= 3 ? scale : 1.2,
     wifiIcon: currentType === "wifi" && $("#wifiIcon").is(":checked"),
-    qrShape: ["square", "rounded", "dots"].indexOf(shape) >= 0 ? shape : "square",
-    qrColor: sanitizeHex($("#qrColor").val(), "#000000"),
+    qrShape: registryValue(MODULE_SHAPES, $("#qrShape").val()),
+    eyeStyle: registryValue(EYE_STYLES, $("#eyeStyle").val()),
+    gradient: GRADIENT_TYPES.indexOf($("#gradient").val()) >= 0 ? $("#gradient").val() : "none",
+    gradientColor2: sanitizeHex($("#gradientColor2").val(), qrColor),
+    eyeColor: $("#customEyeColor").is(":checked") ? sanitizeHex($("#eyeColor").val(), qrColor) : null,
+    qrColor: qrColor,
     qrBgColor: sanitizeHex($("#qrBgColor").val(), "#ffffff"),
     logoSizePercent: Math.max(10, Math.min(30, parseInt($("#logoSize").val(), 10) || 20)),
     logoBgWhite: $("#logoBgWhite").is(":checked"),
@@ -310,6 +371,8 @@ setupColorPicker("qrBgColor");
 setupColorPicker("frameColor");
 setupColorPicker("textBgColor");
 setupColorPicker("textColor");
+setupColorPicker("gradientColor2");
+setupColorPicker("eyeColor");
 
 // Free-text fields are debounced; discrete controls update immediately.
 const updatePreviewDebounced = debounce(updatePreview, 150);
@@ -319,7 +382,8 @@ $("input[name=qrType]").on("change", function() {
   setQrType(this.value);
   updatePreview();
 });
-$("#security, #eapMethod, #phase2, #anonIdentity, #hidden, #qrShape, #qrColor, #qrBgColor, #frameStyle, #frameColor, " +
+$("#security, #eapMethod, #phase2, #anonIdentity, #hidden, #qrShape, #eyeStyle, #gradient, #gradientColor2, " +
+  "#customEyeColor, #eyeColor, #qrColor, #qrBgColor, #frameStyle, #frameColor, " +
   "#textStyle, #textBgColor, #textSize, #autoTextColor, #textColor, #wifiIcon, #logoSize, #logoBgWhite").on("input change", updatePreview);
 
 $(document).on("i18n:applied", function() { $("#logoPreview img").attr("alt", t("logoPreviewAlt")); });

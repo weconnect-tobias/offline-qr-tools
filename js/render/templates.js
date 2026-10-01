@@ -113,6 +113,38 @@ const FRAME_TEMPLATES = {
     }
   },
 
+  // Instant-photo look: narrow paper edges, a wide bottom strip holding title and caption,
+  // and a soft offset shadow. The paper uses the frame colour; pick a light one for classic.
+  polaroid: {
+    ownsText: true,
+    build: function(M, o, tx) {
+      const S = M.S;
+      const shadow = S * 0.012;
+      const W = S - shadow;
+      const edge = W * 0.06;
+      const B = W - edge * 2;
+      const lines = (o.title ? 1 : 0) + (o.caption ? 1 : 0);
+      const titleH = o.title ? M.fontTitle * 1.9 : 0;
+      const captionH = o.caption ? M.fontCaption * 1.9 : 0;
+      const footH = Math.max(W * 0.18, titleH + captionH + (lines ? edge : 0));
+      const h = edge + B + footH;
+      const back = [
+        { type: "path", d: roundRectD(shadow, shadow, W, h, S * 0.012), fill: shadeHex(o.frameColor, -0.35) },
+        { type: "path", d: roundRectD(0, 0, W, h, S * 0.012), fill: o.frameColor }
+      ];
+      const front = [];
+      let y = edge + B + (footH - titleH - captionH) / 2;
+      if (o.title) {
+        front.push.apply(front, tx({ text: o.title, cx: W / 2, cy: y + titleH / 2, basePx: M.fontTitle, maxWidth: W - edge * 3, bold: true, bg: o.frameColor, icon: o.wifiIcon && !o.caption }));
+        y += titleH;
+      }
+      if (o.caption) {
+        front.push.apply(front, tx({ text: o.caption, cx: W / 2, cy: y + captionH / 2, basePx: M.fontCaption, maxWidth: W - edge * 3, bold: false, bg: o.frameColor, icon: o.wifiIcon }));
+      }
+      return { h: h + shadow, block: { x: edge, y: edge, size: B }, back: back, front: front, pageColor: null };
+    }
+  },
+
   // Ribbon band with folded tails under the QR code.
   ribbon: {
     ownsText: true,

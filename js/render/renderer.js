@@ -3,50 +3,8 @@
 /* =========================================================================
  * Scene assembly
  *
- * Depends on: render/scene.js, render/templates.js, core/util.js
+ * Depends on: render/scene.js, render/shapes.js, render/templates.js, core/util.js
  * ========================================================================= */
-
-function isFinderModule(row, col, modCount) {
-  return (row < 7 && col < 7) || (row < 7 && col >= modCount - 7) || (row >= modCount - 7 && col < 7);
-}
-
-// All dark modules as one path. Finder patterns are always solid squares (most
-// reliable to detect); horizontal runs are merged to keep the path small and seam-free.
-function modulePathD(qr, x0, y0, cell, shape) {
-  const n = qr.getModuleCount();
-  const isSolid = function(row, col) {
-    return qr.isDark(row, col) && (shape === "square" || isFinderModule(row, col, n));
-  };
-  let d = "";
-  for (let row = 0; row < n; row++) {
-    let col = 0;
-    while (col < n) {
-      if (!isSolid(row, col)) { col++; continue; }
-      const start = col;
-      while (col < n && isSolid(row, col)) col++;
-      const w = (col - start) * cell;
-      d += "M" + f(x0 + start * cell) + " " + f(y0 + row * cell) + "h" + f(w) + "v" + f(cell) + "h" + f(-w) + "z";
-    }
-  }
-  if (shape === "square") return d;
-
-  for (let row = 0; row < n; row++) {
-    for (let col = 0; col < n; col++) {
-      if (!qr.isDark(row, col) || isFinderModule(row, col, n)) continue;
-      const x = x0 + col * cell;
-      const y = y0 + row * cell;
-      if (shape === "dots") {
-        const r = cell * 0.46;
-        const cx = x + cell / 2;
-        const cy = y + cell / 2;
-        d += "M" + f(cx - r) + " " + f(cy) + "a" + f(r) + " " + f(r) + " 0 1 0 " + f(2 * r) + " 0a" + f(r) + " " + f(r) + " 0 1 0 " + f(-2 * r) + " 0z";
-      } else {
-        d += roundRectD(x, y, cell, cell, cell * 0.28);
-      }
-    }
-  }
-  return d;
-}
 
 function rectsOverlap(a, b) {
   return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
@@ -86,7 +44,16 @@ function buildScene(qr, S, o) {
   const qx = block.x + cell * QUIET_ZONE_MODULES;
   const qy = block.y + cell * QUIET_ZONE_MODULES;
   items.push({ type: "path", d: roundRectD(block.x, block.y, block.size, block.size, block.radius || 0), fill: o.qrBgColor });
-  items.push({ type: "path", d: modulePathD(qr, qx, qy, cell, o.qrShape), fill: o.qrColor });
+  // Data modules and the three finder patterns ("eyes") are separate paths so the eyes
+  // can have their own shape and colour. isData() guards the library's isDark(), which
+  // throws outside the matrix, and leaves the finder areas to eyesPathD().
+  const isData = function(row, col) {
+    return row >= 0 && col >= 0 && row < modCount && col < modCount && !isFinderModule(row, col, modCount) && qr.isDark(row, col);
+  };
+  const moduleShape = MODULE_SHAPES[o.qrShape] || MODULE_SHAPES.square;
+  const paint = qrPaint(o, qx, qy, cell * modCount);
+  items.push({ type: "path", d: moduleShape.pathD(isData, modCount, qx, qy, cell), fill: paint });
+  items.push({ type: "path", d: eyesPathD(modCount, qx, qy, cell, o.eyeStyle), fill: o.eyeColor || paint, fillRule: "evenodd" });
 
   // The logo sits on top of the modules on purpose; error correction level H compensates.
   if (o.logoImage && o.logoDataUrl) {
@@ -119,6 +86,17 @@ function buildScene(qr, S, o) {
  * Renderers
  * ========================================================================= */
 
+// A fill is a colour string or a gradient object from qrPaint() (render/shapes.js).
+function canvasPaint(ctx, fill) {
+  if (!fill || typeof fill === "string") return fill;
+  const g = fill.gradient === "radial"
+    ? ctx.createRadialGradient(fill.cx, fill.cy, 0, fill.cx, fill.cy, fill.r)
+    : ctx.createLinearGradient(fill.x1, fill.y1, fill.x2, fill.y2);
+  g.addColorStop(0, sanitizeHex(fill.stops[0], "#000000"));
+  g.addColorStop(1, sanitizeHex(fill.stops[1], "#000000"));
+  return g;
+}
+
 function sceneToCanvas(scene) {
   const canvas = document.createElement("canvas");
   canvas.width = scene.w;
@@ -137,8 +115,8 @@ function drawCanvasItem(ctx, it) {
     case "path": {
       const p = new Path2D(it.d);
       if (it.fill) {
-        ctx.fillStyle = it.fill;
-        ctx.fill(p);
+        ctx.fillStyle = canvasPaint(ctx, it.fill);
+        ctx.fill(p, it.fillRule === "evenodd" ? "evenodd" : "nonzero");
       }
       if (it.stroke) {
         ctx.save();
@@ -172,20 +150,42 @@ function drawCanvasItem(ctx, it) {
 
 const SAFE_IMAGE_HREF_RE = /^data:image\/png;base64,[A-Za-z0-9+/]+=*$/;
 
-function svgPaint(value) {
+function svgPaint(value, gradientIds) {
+  if (value && typeof value === "object") return "url(#" + gradientIds.get(value) + ")";
   return value ? sanitizeHex(value, "#000000") : "none";
+}
+
+// <defs> for all gradient fills in the scene. Every value is a number or a sanitised colour.
+function svgGradientDefs(scene, gradientIds) {
+  const defs = [];
+  scene.items.forEach(function(it) {
+    const g = it.fill;
+    if (!g || typeof g !== "object" || gradientIds.has(g)) return;
+    const id = "g" + gradientIds.size;
+    gradientIds.set(g, id);
+    const stops = '<stop offset="0" stop-color="' + sanitizeHex(g.stops[0], "#000000") + '"/><stop offset="1" stop-color="' + sanitizeHex(g.stops[1], "#000000") + '"/>';
+    if (g.gradient === "radial") {
+      defs.push('<radialGradient id="' + id + '" gradientUnits="userSpaceOnUse" cx="' + f(g.cx) + '" cy="' + f(g.cy) + '" r="' + f(g.r) + '">' + stops + "</radialGradient>");
+    } else {
+      defs.push('<linearGradient id="' + id + '" gradientUnits="userSpaceOnUse" x1="' + f(g.x1) + '" y1="' + f(g.y1) + '" x2="' + f(g.x2) + '" y2="' + f(g.y2) + '">' + stops + "</linearGradient>");
+    }
+  });
+  return defs.length ? "<defs>" + defs.join("") + "</defs>" : "";
 }
 
 function sceneToSVG(scene) {
   const out = [];
+  const gradientIds = new Map();
   out.push('<svg xmlns="http://www.w3.org/2000/svg" width="' + scene.w + '" height="' + scene.h + '" viewBox="0 0 ' + scene.w + " " + scene.h + '">');
+  out.push(svgGradientDefs(scene, gradientIds));
   scene.items.forEach(function(it) {
     switch (it.type) {
       case "rect":
         out.push('<rect x="' + f(it.x) + '" y="' + f(it.y) + '" width="' + f(it.w) + '" height="' + f(it.h) + '" fill="' + svgPaint(it.fill) + '"/>');
         break;
       case "path": {
-        let attrs = ' d="' + escapeXml(it.d) + '" fill="' + svgPaint(it.fill) + '"';
+        let attrs = ' d="' + escapeXml(it.d) + '" fill="' + svgPaint(it.fill, gradientIds) + '"';
+        if (it.fillRule === "evenodd") attrs += ' fill-rule="evenodd"';
         if (it.stroke) {
           attrs += ' stroke="' + svgPaint(it.stroke) + '" stroke-width="' + f(it.lineWidth || 1) + '"';
           if (it.cap) attrs += ' stroke-linecap="' + (it.cap === "round" ? "round" : "butt") + '"';

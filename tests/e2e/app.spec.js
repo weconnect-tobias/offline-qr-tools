@@ -56,15 +56,103 @@ test("every frame style and dot shape stays scannable", async ({ guarded: page }
   const failures = await page.evaluate(() => {
     const bad = [];
     for (const frame of Object.keys(FRAME_TEMPLATES)) {
-      for (const shape of ["square", "rounded", "dots"]) {
-        const opts = Object.assign(getRenderOpts(), { frameStyle: frame, qrShape: shape, textStyle: "plain", title: "Gäst-WiFi", caption: "Skanna mig", wifiIcon: true });
+      for (const [i, shape] of Object.keys(MODULE_SHAPES).entries()) {
+        const eyeStyle = Object.keys(EYE_STYLES)[i % Object.keys(EYE_STYLES).length];
+        const opts = Object.assign(getRenderOpts(), { frameStyle: frame, qrShape: shape, eyeStyle: eyeStyle, textStyle: "plain", title: "Gäst-WiFi", caption: "Skanna mig", wifiIcon: true });
         const scene = buildScene(currentQR, 640, opts);
-        if (verifyScan(sceneToCanvas(scene), scene.cell, currentPayload).status !== "ok") bad.push(frame + "/" + shape);
+        if (verifyScan(sceneToCanvas(scene), scene.cell, currentPayload).status !== "ok") bad.push(frame + "/" + shape + "/" + eyeStyle);
       }
     }
     return bad;
   });
   expect(failures).toEqual([]);
+});
+
+test("every dot shape x corner style x gradient stays scannable", async ({ guarded: page }) => {
+  await openApp(page);
+  await enterNetwork(page, SSID, PASSWORD);
+  const result = await page.evaluate(() => {
+    const bad = [];
+    let count = 0;
+    for (const shape of Object.keys(MODULE_SHAPES)) {
+      for (const eye of Object.keys(EYE_STYLES)) {
+        for (const gradient of GRADIENT_TYPES) {
+          // Alternate the custom eye colour so both code paths are covered without doubling the grid.
+          const eyeColor = count % 2 ? "#b91c1c" : null;
+          for (const size of [480, 640]) {
+            const opts = Object.assign(getRenderOpts(), { frameStyle: "none", textStyle: "none", title: "", caption: "",
+              qrShape: shape, eyeStyle: eye, gradient: gradient, qrColor: "#000000", gradientColor2: "#1e3a8a", eyeColor: eyeColor });
+            const scene = buildScene(currentQR, size, opts);
+            const status = verifyScan(sceneToCanvas(scene), scene.cell, currentPayload).status;
+            if (status !== "ok") bad.push([shape, eye, gradient, size, status].join("/"));
+          }
+          count++;
+        }
+      }
+    }
+    return { bad: bad, count: count };
+  });
+  expect(result.count).toBeGreaterThanOrEqual(8 * 5 * 5);
+  expect(result.bad).toEqual([]);
+});
+
+test("gradients and custom eye colours are valid in the SVG export", async ({ guarded: page }) => {
+  await openApp(page);
+  await enterNetwork(page, SSID, PASSWORD);
+  const svgs = await page.evaluate(() => GRADIENT_TYPES.map(function(gradient) {
+    const opts = Object.assign(getRenderOpts(), { gradient: gradient, gradientColor2: "#1e3a8a", eyeColor: "#b91c1c", eyeStyle: "circle" });
+    return sceneToSVG(buildScene(currentQR, 400, opts));
+  }));
+  for (const [i, svg] of svgs.entries()) {
+    expect(svg).toContain('fill-rule="evenodd"');
+    expect(svg).toContain("#b91c1c");
+    if (i === 0) expect(svg).not.toContain("Gradient");
+    else expect(svg).toMatch(/<(linear|radial)Gradient id="g\d+" gradientUnits="userSpaceOnUse"/);
+  }
+  // Well-formed XML: the browser's parser reports errors as a <parsererror> element.
+  const errors = await page.evaluate((list) => list.filter(function(svg) {
+    return new DOMParser().parseFromString(svg, "image/svg+xml").getElementsByTagName("parsererror").length > 0;
+  }).length, svgs);
+  expect(errors).toBe(0);
+});
+
+test("style controls: registry options, presets and conditional pickers", async ({ guarded: page }) => {
+  await openApp(page);
+  await enterNetwork(page, SSID, PASSWORD);
+  await openAllSections(page);
+  const moduleIds = await page.evaluate(() => Object.keys(MODULE_SHAPES));
+  await expect(page.locator("#qrShape option")).toHaveCount(moduleIds.length);
+  await expect(page.locator("#qrShape option[value=fluid]")).toHaveText("Flytande (sammanhängande)");
+
+  await expect(page.locator("#gradientColor2Wrap")).toBeHidden();
+  await page.selectOption("#gradient", "radial");
+  await expect(page.locator("#gradientColor2Wrap")).toBeVisible();
+
+  await expect(page.locator("#eyeColorWrap")).toBeHidden();
+  await page.check("#customEyeColor");
+  await expect(page.locator("#eyeColorWrap")).toBeVisible();
+
+  await page.click("[data-preset=elegant]");
+  await expect(page.locator("#qrShape")).toHaveValue("classy");
+  await expect(page.locator("#eyeStyle")).toHaveValue("leaf");
+  await expect(page.locator("#eyeStyle option")).toHaveCount(await page.evaluate(() => Object.keys(EYE_STYLES).length));
+  await waitForScan(page);
+  await expect(page.locator("#scanStatus")).toHaveAttribute("data-state", "ok");
+
+  // A light second gradient colour on white must trigger the contrast warning.
+  await page.selectOption("#gradient", "vertical");
+  await page.evaluate(() => $("#gradientColor2").val("#fde68a").trigger("change"));
+  await expect(page.locator("#contrastWarning")).toBeVisible();
+});
+
+test("polaroid frame switches the default dark paper to white and stays scannable", async ({ guarded: page }) => {
+  await openApp(page);
+  await enterNetwork(page, SSID, PASSWORD);
+  await openAllSections(page);
+  await page.selectOption("#frameStyle", "polaroid");
+  await expect(page.locator("#frameColor")).toHaveValue("#ffffff");
+  await waitForScan(page);
+  await expect(page.locator("#scanStatus")).toHaveAttribute("data-state", "ok");
 });
 
 test("invalid WPA password shows an error tied to the field", async ({ guarded: page }) => {

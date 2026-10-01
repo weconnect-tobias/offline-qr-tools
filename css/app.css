@@ -288,6 +288,9 @@
 .demo-label { font-size: 12px; color: #6b7280; margin-bottom: 8px; }
 .hex-prefix { font-size: 13px; color: #6b7280; }
 .inline-check-spaced { margin-top: 16px; }
+.preset-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+.preset-row .field-label { width: 100%; margin: 0; }
+.small-btn:hover, .small-btn:focus-visible { border-color: #1f2937; }
 .logo-row .file-btn { margin: 0; }
 .lang-btn img, .lang-option img { object-fit: cover; }
 
