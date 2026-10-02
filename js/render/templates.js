@@ -9,11 +9,37 @@
  *   back      primitives drawn BEFORE the QR (anything overlapping the block gets covered)
  *   front     text primitives drawn AFTER the QR (dropped if they overlap the block)
  *   pageColor background of the whole image (null = transparent)
+ * blockOnPaper: true means the QR block sits on the template's own paper, so a transparent
+ * export keeps the QR background there.
  *
  * To add a style: add an entry here and an <option> in #frameStyle (+ i18n key).
  *
- * Depends on: render/scene.js, render/shapes.js (circleD), core/util.js; t() from ui/i18n.js at render time
+ * Depends on: render/scene.js, core/util.js; t() from ui/i18n.js at render time
  * ========================================================================= */
+
+// Rectangle (x0, y0)–(x1, y1) with semicircular bites along every edge and quarter bites
+// at the corners. The holes are cut out of the outline (not painted over), so the stamp
+// also works on a transparent background. All arcs use sweep 0: they bend into the paper.
+function stampPathD(x0, y0, x1, y1, r) {
+  const bite = function(ex, ey) { return "A" + f(r) + " " + f(r) + " 0 0 0 " + f(ex) + " " + f(ey); };
+  const centres = function(from, to) {
+    const len = Math.abs(to - from);
+    const count = Math.max(2, Math.round(len / (r * 3.2)));
+    const list = [];
+    for (let i = 1; i < count; i++) list.push(from + (to - from) * i / count);
+    return list;
+  };
+  let d = "M" + f(x0 + r) + " " + f(y0);
+  centres(x0, x1).forEach(function(c) { d += "L" + f(c - r) + " " + f(y0) + bite(c + r, y0); });
+  d += "L" + f(x1 - r) + " " + f(y0) + bite(x1, y0 + r);
+  centres(y0, y1).forEach(function(c) { d += "L" + f(x1) + " " + f(c - r) + bite(x1, c + r); });
+  d += "L" + f(x1) + " " + f(y1 - r) + bite(x1 - r, y1);
+  centres(x1, x0).forEach(function(c) { d += "L" + f(c + r) + " " + f(y1) + bite(c - r, y1); });
+  d += "L" + f(x0 + r) + " " + f(y1) + bite(x0, y1 - r);
+  centres(y1, y0).forEach(function(c) { d += "L" + f(x0) + " " + f(c + r) + bite(x0, c - r); });
+  d += "L" + f(x0) + " " + f(y0 + r) + bite(x0 + r, y0) + "Z";
+  return d;
+}
 
 // Classic layouts: optional frame line + text as plain lines or colored plates.
 function classicTemplate(kind) {
@@ -132,25 +158,16 @@ const FRAME_TEMPLATES = {
   // Postage stamp: frame-coloured paper with perforated edges, text in the top and bottom bands.
   stamp: {
     ownsText: true,
+    blockOnPaper: true,
     build: function(M, o, tx) {
       const S = M.S;
-      const hole = S * 0.018;           // perforation radius; the paper starts at its centre line
+      const hole = S * 0.018;           // perforation radius; the paper edge runs through the hole centres
       const edge = S * 0.07;
       const headH = o.title ? M.bandH(M.fontTitle) : edge;
       const footH = o.caption ? M.bandH(M.fontCaption) : edge;
       const B = S - hole * 2 - edge * 2;
       const h = hole * 2 + headH + B + footH;
-      const pw = S - hole * 2, ph = h - hole * 2;
-      const back = [{ type: "rect", x: hole, y: hole, w: pw, h: ph, fill: o.frameColor }];
-      // Holes in the page colour, evenly spread so every edge starts and ends with one.
-      const holes = function(len, along) {
-        const count = Math.max(2, Math.round(len / (hole * 3.2)));
-        for (let i = 0; i <= count; i++) along(hole + len * i / count);
-      };
-      let d = "";
-      holes(pw, function(x) { d += circleD(x, hole, hole) + circleD(x, h - hole, hole); });
-      holes(ph, function(y) { d += circleD(hole, y, hole) + circleD(S - hole, y, hole); });
-      back.push({ type: "path", d: d, fill: o.qrBgColor });
+      const back = [{ type: "path", d: stampPathD(hole, hole, S - hole, h - hole, hole), fill: o.frameColor }];
       const front = [];
       if (o.title) {
         front.push.apply(front, tx({ text: o.title, cx: S / 2, cy: hole + headH / 2, basePx: M.fontTitle, maxWidth: B, bold: true, bg: o.frameColor, icon: o.wifiIcon && !o.caption }));
@@ -158,13 +175,14 @@ const FRAME_TEMPLATES = {
       if (o.caption) {
         front.push.apply(front, tx({ text: o.caption, cx: S / 2, cy: hole + headH + B + footH / 2, basePx: M.fontCaption, maxWidth: B, bold: true, bg: o.frameColor, icon: o.wifiIcon }));
       }
-      return { h: h, block: { x: hole + edge, y: hole + headH, size: B }, back: back, front: front, pageColor: o.qrBgColor };
+      return { h: h, block: { x: hole + edge, y: hole + headH, size: B }, back: back, front: front, pageColor: null };
     }
   },
 
   // Thick colored card: title in the header band, caption in the footer band.
   card: {
     ownsText: true,
+    blockOnPaper: true,
     build: function(M, o, tx) {
       const S = M.S;
       const edge = S * 0.06;
@@ -188,6 +206,7 @@ const FRAME_TEMPLATES = {
   // and a soft offset shadow. The paper uses the frame colour; pick a light one for classic.
   polaroid: {
     ownsText: true,
+    blockOnPaper: true,
     build: function(M, o, tx) {
       const S = M.S;
       const shadow = S * 0.012;

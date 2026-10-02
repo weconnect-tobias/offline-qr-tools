@@ -83,10 +83,18 @@ $("select[data-registry]").each(function() {
 
 function updateQrStyleVisibility() {
   $("#gradientColor2Wrap").toggle($("#gradient").val() !== "none");
+  $("#gradientAngleWrap").toggle($("#gradient").val() === "angle");
   $("#eyeColorWrap").toggle($("#customEyeColor").is(":checked"));
 }
 $("#gradient, #customEyeColor").on("change", updateQrStyleVisibility);
 updateQrStyleVisibility();
+
+// Shows the angle next to the label; screen readers announce "45°" instead of a bare number.
+$("#gradientAngle").on("input change", function() {
+  const label = normalizeAngle($(this).val()) + "°";
+  $(this).attr("aria-valuetext", label);
+  $("#gradientAngleValue").text(label);
+});
 
 // Presets only set shape/gradient controls; colours stay the user's choice.
 const QR_STYLE_PRESETS = {
@@ -150,7 +158,9 @@ const ERROR_FIELDS = {
   phone: { errPhoneInvalid: "#phoneNumber" },
   sms: { errPhoneInvalid: "#smsNumber", errTextTooLong: "#smsMessage" },
   vcard: { errPhoneInvalid: "#vcPhone", errEmailInvalid: "#vcEmail", errUrlInvalid: "#vcUrl", errUrlScheme: "#vcUrl", errUrlCredentials: "#vcUrl", errUrlTooLong: "#vcUrl", errTextTooLong: "#vcNote" },
-  geo: { errGeoInvalid: "#geoLat" }
+  geo: { errGeoInvalid: "#geoLat" },
+  swish: { errSwishNumber: "#swNumber", errSwishAmount: "#swAmount", errSwishMessage: "#swMessage" },
+  event: { errEventStart: "#evStartDate", errEventEnd: "#evEndDate", errTextTooLong: "#evDescription" }
 };
 
 // Marks the offending field invalid and points it at the message, so screen readers
@@ -180,6 +190,7 @@ function updateExportFieldsVisibility() {
   $("#pixelSizeWrap").toggle(!isPdf);
   $("#customSizeWrap").toggle(!isPdf && $("#exportSize").val() === "custom");
   $("#pdfExtras").toggle(isPdf);
+  $("#transparentWrap").toggle(!isPdf);
 }
 $("#exportFormat").on("change", updateExportFieldsVisibility);
 updateExportFieldsVisibility();
@@ -234,11 +245,14 @@ function getRenderOpts() {
     eyeStyle: registryValue(EYE_STYLES, $("#eyeStyle").val()),
     gradient: GRADIENT_TYPES.indexOf($("#gradient").val()) >= 0 ? $("#gradient").val() : "none",
     gradientColor2: sanitizeHex($("#gradientColor2").val(), qrColor),
+    gradientAngle: normalizeAngle($("#gradientAngle").val()),
     eyeColor: $("#customEyeColor").is(":checked") ? sanitizeHex($("#eyeColor").val(), qrColor) : null,
     qrColor: qrColor,
     qrBgColor: sanitizeHex($("#qrBgColor").val(), "#ffffff"),
     logoSizePercent: Math.max(10, Math.min(30, parseInt($("#logoSize").val(), 10) || 20)),
-    logoBgWhite: $("#logoBgWhite").is(":checked"),
+    logoBackground: LOGO_BACKGROUNDS.indexOf($("#logoBackground").val()) >= 0 ? $("#logoBackground").val() : "clear",
+    quietZone: QUIET_ZONE_CHOICES.indexOf(parseInt($("#quietZone").val(), 10)) >= 0 ? parseInt($("#quietZone").val(), 10) : QUIET_ZONE_MODULES,
+    transparent: false, // only PNG/SVG downloads set this (download handler)
     logoImage: logoImage,
     logoDataUrl: logoDataUrl
   };
@@ -268,8 +282,43 @@ const TYPE_READERS = {
       zip: $("#vcZip").val(), city: $("#vcCity").val(), country: $("#vcCountry").val(), note: $("#vcNote").val()
     };
   },
-  geo: function() { return { lat: $("#geoLat").val(), lon: $("#geoLon").val() }; }
+  geo: function() { return { lat: $("#geoLat").val(), lon: $("#geoLon").val() }; },
+  swish: function() {
+    return {
+      number: $("#swNumber").val(), amount: $("#swAmount").val(), message: $("#swMessage").val(),
+      amountLocked: $("#swAmountLocked").is(":checked"), messageLocked: $("#swMessageLocked").is(":checked")
+    };
+  },
+  event: function() {
+    return {
+      title: $("#evTitle").val(), location: $("#evLocation").val(), allDay: $("#evAllDay").is(":checked"),
+      startDate: $("#evStartDate").val(), startTime: $("#evStartTime").val(),
+      endDate: $("#evEndDate").val(), endTime: $("#evEndTime").val(), description: $("#evDescription").val()
+    };
+  }
 };
+
+// Swish lock boxes follow their field (filled = locked, empty = open) until the user
+// clicks them; after that the user's choice stands. Like Swish's own generator, an empty
+// amount cannot be locked (it is always open), while an empty message can.
+function syncSwishLock(field, box) {
+  if (!$(box).data("userSet")) $(box).prop("checked", String($(field).val()).trim() !== "");
+}
+function updateSwishAmountLock() {
+  const empty = String($("#swAmount").val()).trim() === "";
+  $("#swAmountLocked").prop("disabled", empty);
+  if (empty) $("#swAmountLocked").prop("checked", false).removeData("userSet");
+  else syncSwishLock("#swAmount", "#swAmountLocked");
+}
+$("#swAmount").on("input", updateSwishAmountLock);
+$("#swMessage").on("input", function() { syncSwishLock("#swMessage", "#swMessageLocked"); });
+$("#swAmountLocked, #swMessageLocked").on("click", function() { $(this).data("userSet", true); });
+updateSwishAmountLock();
+
+// All-day events have no times.
+$("#evAllDay").on("change", function() {
+  $(".ev-time").toggle(!$(this).is(":checked"));
+});
 
 // Example content shown until the user has filled in the form.
 function demoInput(type) {
@@ -281,6 +330,8 @@ function demoInput(type) {
     case "phone": case "sms": return { number: "+46 70 123 45 67" };
     case "vcard": return { firstName: "Anna", lastName: "Svensson" };
     case "geo": return { lat: "58.9395", lon: "11.1712" };
+    case "swish": return { number: "1231234567", amount: "100" };
+    case "event": return { title: t("demoEventTitle"), startDate: "2026-12-24", startTime: "15:00" };
   }
   return {};
 }
@@ -302,10 +353,62 @@ function setQrType(type, options) {
   $(document).trigger("qrtype:changed");
 }
 
+// Ready-made call-to-action texts for the caption, per content type ("*" = every type).
+const CAPTION_SUGGESTIONS = [
+  { key: "ctaScanMe", types: "*" },
+  { key: "ctaFreeWifi", types: ["wifi"] },
+  { key: "ctaGuestWifi", types: ["wifi"] },
+  { key: "ctaVisitSite", types: ["url"] },
+  { key: "ctaSeeMenu", types: ["url"] },
+  { key: "ctaReadMore", types: ["url", "text"] },
+  { key: "ctaEmailUs", types: ["email"] },
+  { key: "ctaCallUs", types: ["phone"] },
+  { key: "ctaTextUs", types: ["sms"] },
+  { key: "ctaSaveContact", types: ["vcard"] },
+  { key: "ctaFindUs", types: ["geo"] },
+  { key: "ctaSaveDate", types: ["event"] },
+  { key: "ctaPayWithSwish", types: ["swish"] },
+  { key: "ctaSupportUs", types: ["swish"] }
+];
+
+function renderCaptionSuggestions() {
+  const row = $("#captionSuggestions");
+  row.find("button").remove();
+  CAPTION_SUGGESTIONS.forEach(function(s) {
+    if (s.types !== "*" && s.types.indexOf(currentType) < 0) return;
+    $("<button type='button' class='small-btn'></button>").attr({ "data-caption": s.key, "data-i18n": s.key }).text(t(s.key)).appendTo(row);
+  });
+}
+$(document).on("qrtype:changed", renderCaptionSuggestions);
+
+// Fills the caption in the current language; turns text on if it was off.
+$("#captionSuggestions").on("click", "button[data-caption]", function() {
+  const key = $(this).attr("data-caption");
+  if (!CAPTION_SUGGESTIONS.some(function(s) { return s.key === key; })) return;
+  if ($("#textStyle").val() === "none") $("#textStyle").val("plain").trigger("change");
+  $("#captionText").val(t(key)).trigger("input");
+});
+
 // Wi-Fi-only options are hidden for other types.
 $(document).on("qrtype:changed", function() {
   $("#wifiIcon").closest("label").toggle(currentType === "wifi");
 });
+
+// A logo hides modules, so it always gets the highest level. Without one, "auto" picks Q:
+// robust against dirt and wear while keeping the modules larger than with H.
+const EC_LEVELS = ["L", "M", "Q", "H"];
+
+function errorCorrectionLevel() {
+  if (logoImage) return "H";
+  const level = $("#ecLevel").val();
+  return EC_LEVELS.indexOf(level) >= 0 ? level : "Q";
+}
+
+function updateAdvancedNotes() {
+  $("#ecLogoNote").toggle(Boolean(logoImage) && $("#ecLevel").val() !== "auto" && $("#ecLevel").val() !== "H");
+  $("#quietZoneNote").toggle($("#quietZone").val() === "2");
+}
+$(document).on("preview:rendered", updateAdvancedNotes);
 
 function fileBaseName() {
   return "qr-" + currentType;
@@ -314,7 +417,7 @@ function fileBaseName() {
 function showDemo() {
   try {
     const demoResult = buildQrPayload(currentType, demoInput(currentType));
-    const demo = qrcode(0, "H");
+    const demo = qrcode(0, errorCorrectionLevel());
     demo.addData(demoResult.payload);
     demo.make();
     currentQR = demo;
@@ -346,7 +449,7 @@ function updatePreview() {
 
   let qr;
   try {
-    qr = qrcode(0, "H");
+    qr = qrcode(0, errorCorrectionLevel());
     qr.addData(result.payload);
     qr.make();
   } catch (e) {
@@ -384,9 +487,9 @@ $("input[name=qrType]").on("change", function() {
   setQrType(this.value);
   updatePreview();
 });
-$("#security, #eapMethod, #phase2, #anonIdentity, #hidden, #qrShape, #eyeStyle, #gradient, #gradientColor2, " +
+$("#security, #eapMethod, #phase2, #anonIdentity, #hidden, #evAllDay, #swAmountLocked, #swMessageLocked, #qrShape, #eyeStyle, #gradient, #gradientAngle, #gradientColor2, " +
   "#customEyeColor, #eyeColor, #qrColor, #qrBgColor, #frameStyle, #frameColor, " +
-  "#textStyle, #textBgColor, #textSize, #autoTextColor, #textColor, #wifiIcon, #logoSize, #logoBgWhite").on("input change", updatePreview);
+  "#textStyle, #textBgColor, #textSize, #autoTextColor, #textColor, #wifiIcon, #logoSize, #logoBackground, #quietZone, #ecLevel").on("input change", updatePreview);
 
 $(document).on("i18n:applied", function() { $("#logoPreview img").attr("alt", t("logoPreviewAlt")); });
 
@@ -424,6 +527,8 @@ $("#download").on("click", function() {
   if (lastScanStatus === "fail" && !window.confirm(t("scanFailConfirm"))) return;
   const format = $("#exportFormat").val();
   const opts = getRenderOpts();
+  // PDF pages are always white paper; transparency only makes sense for PNG and SVG.
+  opts.transparent = format !== "pdf" && $("#transparentBg").is(":checked");
 
   if (format === "svg") {
     const svgStr = sceneToSVG(buildScene(currentQR, getExportSize(), opts));

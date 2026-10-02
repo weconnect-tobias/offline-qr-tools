@@ -11,7 +11,12 @@ const CASES = [
   { type: "sms", fill: { "#smsNumber": "070-123 45 67", "#smsMessage": "Hej!" }, payload: "SMSTO:0701234567:Hej!" },
   { type: "vcard", fill: { "#vcFirst": "Anna", "#vcLast": "Åkerö", "#vcPhone": "+46701234567" },
     payload: "BEGIN:VCARD\r\nVERSION:3.0\r\nN:Åkerö;Anna;;;\r\nFN:Anna Åkerö\r\nTEL;TYPE=CELL:+46701234567\r\nEND:VCARD", caption: "Anna Åkerö" },
-  { type: "geo", fill: { "#geoLat": "58,9395", "#geoLon": "11.1712" }, payload: "geo:58.9395,11.1712" }
+  { type: "geo", fill: { "#geoLat": "58,9395", "#geoLon": "11.1712" }, payload: "geo:58.9395,11.1712" },
+  { type: "event", fill: { "#evTitle": "Öppet hus", "#evLocation": "Storgatan 1", "#evStartDate": "2026-10-03", "#evStartTime": "14:00", "#evEndTime": "16:00" },
+    payload: "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nSUMMARY:Öppet hus\r\nDTSTART:20261003T140000\r\nDTEND:20261003T160000\r\nLOCATION:Storgatan 1\r\nEND:VEVENT\r\nEND:VCALENDAR",
+    caption: "Öppet hus" },
+  { type: "swish", fill: { "#swNumber": "123 123 45 67", "#swAmount": "150", "#swMessage": "Kaffe & bulle" },
+    payload: "https://app.swish.nu/1/p/sw/?sw=1231234567&amt=150&cur=SEK&msg=Kaffe%20%26%20bulle&src=qr", caption: "123 123 45 67" }
 ];
 
 for (const c of CASES) {
@@ -113,4 +118,62 @@ test("Wi-Fi-only options are hidden for other types", async ({ guarded: page }) 
   await expect(page.locator("#wifiIcon")).toBeVisible();
   await page.click("input[name=qrType][value=phone] + span");
   await expect(page.locator("#wifiIcon")).toBeHidden();
+});
+
+test("event: all day hides the time fields; a reversed range shows an error tied to the end date", async ({ guarded: page }) => {
+  await openApp(page);
+  await page.click("input[name=qrType][value=event] + span");
+  await page.fill("#evTitle", "Mässa");
+  await page.fill("#evStartDate", "2026-10-03");
+  await page.fill("#evStartTime", "10:00");
+  await page.fill("#evEndDate", "2026-10-01");
+  await expect(page.locator("#formError")).toHaveAttribute("data-i18n", "errEventEnd");
+  await expect(page.locator("#evEndDate")).toHaveAttribute("aria-invalid", "true");
+  await expect(page.locator("#download")).toBeDisabled();
+
+  await page.fill("#evEndDate", "2026-10-04");
+  await page.check("#evAllDay");
+  await expect(page.locator("#evStartTime")).toBeHidden();
+  await waitForScan(page);
+  await expect(page.locator("#scanStatus")).toHaveAttribute("data-state", "ok");
+  expect(await page.evaluate(() => currentPayload)).toContain("DTSTART;VALUE=DATE:20261003\r\nDTEND;VALUE=DATE:20261005");
+});
+
+test("swish: an invalid number is tied to its field; the code is a link and makes no request", async ({ guarded: page }) => {
+  await openApp(page);
+  await page.click("input[name=qrType][value=swish] + span");
+  await page.fill("#swNumber", "0812345678");
+  await expect(page.locator("#formError")).toHaveAttribute("data-i18n", "errSwishNumber");
+  await expect(page.locator("#swNumber")).toHaveAttribute("aria-invalid", "true");
+  await page.fill("#swNumber", "070-123 45 67");
+  await waitForScan(page);
+  await expect(page.locator("#scanStatus")).toHaveAttribute("data-state", "ok");
+  expect(await page.evaluate(() => currentPayload)).toBe("https://app.swish.nu/1/p/sw/?sw=0701234567&msg=&edit=msg&src=qr");
+});
+
+test("swish: lock boxes follow their fields until clicked; an empty message can be locked, an empty amount cannot", async ({ guarded: page }) => {
+  await openApp(page);
+  await page.click("input[name=qrType][value=swish] + span");
+  await page.fill("#swNumber", "0701234567");
+  await expect(page.locator("#swAmountLocked")).toBeDisabled();
+  await page.fill("#swAmount", "50");
+  await expect(page.locator("#swAmountLocked")).toBeEnabled();
+  await expect(page.locator("#swAmountLocked")).toBeChecked();
+  await expect(page.locator("#swMessageLocked")).not.toBeChecked();
+
+  // Lock the empty message: same link as Swish's own generator ("msg=" without edit).
+  await page.check("#swMessageLocked");
+  await waitForScan(page);
+  expect(await page.evaluate(() => currentPayload)).toBe("https://app.swish.nu/1/p/sw/?sw=0701234567&amt=50&cur=SEK&msg=&src=qr");
+
+  // A manual choice is kept when the field changes.
+  await page.uncheck("#swAmountLocked");
+  await page.fill("#swAmount", "75");
+  await expect(page.locator("#swAmountLocked")).not.toBeChecked();
+
+  // Clearing the amount makes it open again and disables its lock.
+  await page.fill("#swAmount", "");
+  await expect(page.locator("#swAmountLocked")).toBeDisabled();
+  await waitForScan(page);
+  expect(await page.evaluate(() => currentPayload)).toBe("https://app.swish.nu/1/p/sw/?sw=0701234567&msg=&src=qr");
 });

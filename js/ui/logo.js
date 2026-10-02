@@ -5,6 +5,7 @@
  *  - size cap before reading, magic-byte sniffing (PNG/JPEG only, no SVG),
  *  - dimension cap, then re-encoded through a canvas to a clean PNG so no
  *    original bytes (metadata, polyglot payloads) ever reach an export.
+ *  - The same pipeline (loadLogoBuffer) is used for logos inside design files.
  *
  * Depends on: jQuery, ui/state.js; showMessage()/updatePreview() from app.js at event time
  * ========================================================================= */
@@ -56,32 +57,38 @@ function acceptNormalizedLogo(img) {
   clean.src = dataUrl;
 }
 
+// Shared by the file picker and design files (js/ui/design-file.js): size cap → sniff →
+// decode → dimension check → re-encode. The original bytes are only ever decoded.
+function loadLogoBuffer(buf) {
+  showMessage("#logoError", null);
+  if (buf.byteLength > LOGO_MAX_BYTES) { rejectLogo("logoErrSize"); return; }
+  const mime = sniffImageMime(new Uint8Array(buf, 0, Math.min(16, buf.byteLength)));
+  if (!mime) { rejectLogo("logoErrType"); return; }
+
+  const blobUrl = URL.createObjectURL(new Blob([buf], { type: mime }));
+  const img = new Image();
+  img.onload = function() {
+    URL.revokeObjectURL(blobUrl);
+    if (!img.naturalWidth || img.naturalWidth > LOGO_MAX_DIMENSION || img.naturalHeight > LOGO_MAX_DIMENSION) {
+      rejectLogo("logoErrDims");
+      return;
+    }
+    acceptNormalizedLogo(img);
+  };
+  img.onerror = function() {
+    URL.revokeObjectURL(blobUrl);
+    rejectLogo("logoErrRead");
+  };
+  img.src = blobUrl;
+}
+
 $("#logoFile").on("change", function(e) {
   const file = e.target.files && e.target.files[0];
   showMessage("#logoError", null);
   if (!file) return;
+  // Checked before reading so a huge file is never loaded into memory.
   if (file.size > LOGO_MAX_BYTES) { rejectLogo("logoErrSize"); return; }
-
-  file.arrayBuffer().then(function(buf) {
-    const mime = sniffImageMime(new Uint8Array(buf, 0, Math.min(16, buf.byteLength)));
-    if (!mime) { rejectLogo("logoErrType"); return; }
-
-    const blobUrl = URL.createObjectURL(new Blob([buf], { type: mime }));
-    const img = new Image();
-    img.onload = function() {
-      URL.revokeObjectURL(blobUrl);
-      if (!img.naturalWidth || img.naturalWidth > LOGO_MAX_DIMENSION || img.naturalHeight > LOGO_MAX_DIMENSION) {
-        rejectLogo("logoErrDims");
-        return;
-      }
-      acceptNormalizedLogo(img);
-    };
-    img.onerror = function() {
-      URL.revokeObjectURL(blobUrl);
-      rejectLogo("logoErrRead");
-    };
-    img.src = blobUrl;
-  }).catch(function() { rejectLogo("logoErrRead"); });
+  file.arrayBuffer().then(loadLogoBuffer).catch(function() { rejectLogo("logoErrRead"); });
 });
 
 $("#removeLogo").on("click", function() {

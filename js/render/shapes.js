@@ -264,10 +264,39 @@ const EYE_STYLES = {
   pointed: { labelKey: "eyePointed", frame: "pointed", ball: "pointed" }
 };
 
-const GRADIENT_TYPES = ["none", "vertical", "horizontal", "diagonal", "radial"];
+const GRADIENT_TYPES = ["none", "vertical", "horizontal", "diagonal", "radial", "angle"];
 
 function isFinderModule(row, col, modCount) {
   return (row < 7 && col < 7) || (row < 7 && col >= modCount - 7) || (row >= modCount - 7 && col < 7);
+}
+
+// Centres of the alignment patterns per version (ISO/IEC 18004 Annex E; same table as the
+// vendored qrcode-generator, checked by tests/unit/shapes.test.js).
+const ALIGNMENT_POSITIONS = [
+  [], [6, 18], [6, 22], [6, 26], [6, 30], [6, 34], [6, 22, 38], [6, 24, 42], [6, 26, 46], [6, 28, 50],
+  [6, 30, 54], [6, 32, 58], [6, 34, 62], [6, 26, 46, 66], [6, 26, 48, 70], [6, 26, 50, 74], [6, 30, 54, 78],
+  [6, 30, 56, 82], [6, 30, 58, 86], [6, 34, 62, 90], [6, 28, 50, 72, 94], [6, 26, 50, 74, 98],
+  [6, 30, 54, 78, 102], [6, 28, 54, 80, 106], [6, 32, 58, 84, 110], [6, 30, 58, 86, 114], [6, 34, 62, 90, 118],
+  [6, 26, 50, 74, 98, 122], [6, 30, 54, 78, 102, 126], [6, 26, 52, 78, 104, 130], [6, 30, 56, 82, 108, 134],
+  [6, 34, 60, 86, 112, 138], [6, 30, 58, 86, 114, 142], [6, 34, 62, 90, 118, 146], [6, 30, 54, 78, 102, 126, 150],
+  [6, 24, 50, 76, 102, 128, 154], [6, 28, 54, 80, 106, 132, 158], [6, 32, 58, 84, 110, 136, 162],
+  [6, 26, 54, 82, 110, 138, 166], [6, 30, 58, 86, 114, 142, 170]
+];
+
+// Modules a scanner needs to locate and sample the grid: finder patterns with their
+// separators, timing patterns and alignment patterns. Never cleared for a logo.
+function isStructuralModule(row, col, n) {
+  if (row < 8 && col < 8 || row < 8 && col >= n - 8 || row >= n - 8 && col < 8) return true;
+  if (row === 6 || col === 6) return true;
+  const centres = ALIGNMENT_POSITIONS[(n - 17) / 4 - 1] || [];
+  for (let i = 0; i < centres.length; i++) {
+    for (let j = 0; j < centres.length; j++) {
+      const r = centres[i], c = centres[j];
+      if (isFinderModule(r, c, n)) continue; // alignment patterns are not placed on the finders
+      if (Math.abs(row - r) <= 2 && Math.abs(col - c) <= 2) return true;
+    }
+  }
+  return false;
 }
 
 // Top-left module of each finder pattern: top-left, top-right, bottom-left.
@@ -294,6 +323,24 @@ function qrPaint(opts, x, y, size) {
   if (type === "none") return opts.qrColor;
   const stops = [opts.qrColor, opts.gradientColor2];
   if (type === "radial") return { gradient: "radial", cx: x + size / 2, cy: y + size / 2, r: size * 0.72, stops: stops };
+  if (type === "angle") return angleGradient(normalizeAngle(opts.gradientAngle), x, y, size, stops);
   const end = { vertical: [x, y + size], horizontal: [x + size, y], diagonal: [x + size, y + size] }[type];
   return { gradient: "linear", x1: x, y1: y, x2: end[0], y2: end[1], stops: stops };
+}
+
+// Whole degrees in 0–359; anything that is not a finite number becomes 45.
+function normalizeAngle(value) {
+  const n = Math.round(Number(value));
+  return Number.isFinite(n) ? ((n % 360) + 360) % 360 : 45;
+}
+
+// Linear gradient through the centre of the code. 0° runs left to right, 90° top to bottom
+// (clockwise, as y grows downwards). The end points are placed so the first and last colour
+// touch the corners of the code at every angle.
+function angleGradient(degrees, x, y, size, stops) {
+  const rad = degrees * Math.PI / 180;
+  const dx = Math.cos(rad), dy = Math.sin(rad);
+  const half = size / 2 * (Math.abs(dx) + Math.abs(dy));
+  const cx = x + size / 2, cy = y + size / 2;
+  return { gradient: "linear", x1: cx - dx * half, y1: cy - dy * half, x2: cx + dx * half, y2: cy + dy * half, stops: stops };
 }

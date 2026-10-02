@@ -14,6 +14,9 @@ const EYE_STYLES = get("EYE_STYLES");
 const GRADIENT_TYPES = get("GRADIENT_TYPES");
 const eyesPathD = get("eyesPathD");
 const qrPaint = get("qrPaint");
+const ALIGNMENT_POSITIONS = get("ALIGNMENT_POSITIONS");
+const isStructuralModule = get("isStructuralModule");
+const normalizeAngle = get("normalizeAngle");
 
 const langFiles = fs.readdirSync(path.join(ROOT, "lang")).filter((f) => f.endsWith(".js"));
 const I18N = loadScripts(langFiles.map((f) => "lang/" + f))("I18N");
@@ -76,4 +79,37 @@ test("qrPaint returns a flat colour or a gradient spanning the code", () => {
   assert.equal(radial.gradient, "radial");
   assert.equal(radial.cx, 50);
   for (const type of GRADIENT_TYPES.slice(1)) assert.equal(typeof qrPaint(Object.assign({ gradient: type }, base), 0, 0, 100), "object", type);
+});
+
+test("the alignment table matches the vendored qrcode-generator", () => {
+  const dir = path.join(ROOT, "vendor/qrcode-generator");
+  const file = fs.readdirSync(dir).find((f) => /^qrcode.*\.js$/.test(f));
+  const src = fs.readFileSync(path.join(dir, file), "utf8");
+  const m = src.match(/PATTERN_POSITION_TABLE = (\[[\s\S]*?\]);/);
+  assert.ok(m, "table found in vendor file");
+  assert.deepEqual(plain(ALIGNMENT_POSITIONS), JSON.parse(m[1]));
+});
+
+test("structural modules: finders with separators, timing and alignment patterns are protected", () => {
+  const n = 45; // version 7: alignment centres 6, 22, 38
+  assert.ok(isStructuralModule(7, 7, n), "finder separator");
+  assert.ok(isStructuralModule(6, 20, n) && isStructuralModule(20, 6, n), "timing patterns");
+  assert.ok(isStructuralModule(22, 22, n) && isStructuralModule(20, 24, n), "central alignment pattern");
+  assert.ok(isStructuralModule(38, 38, n), "bottom-right alignment pattern");
+  assert.ok(!isStructuralModule(19, 19, n) && !isStructuralModule(30, 30, n), "ordinary data modules");
+  assert.ok(!isStructuralModule(10, 10, 21), "version 1 has no alignment pattern");
+});
+
+test("custom gradient angles: normalised, and the gradient runs through the centre", () => {
+  assert.equal(normalizeAngle(370), 10);
+  assert.equal(normalizeAngle(-90), 270);
+  assert.equal(normalizeAngle("abc"), 45);
+  assert.equal(normalizeAngle("1e999"), 45);
+  const base = { qrColor: "#000000", gradientColor2: "#1e3a8a", gradient: "angle" };
+  const right = plain(qrPaint(Object.assign({ gradientAngle: 0 }, base), 0, 0, 100));
+  assert.deepEqual([right.x1, right.y1, right.x2, right.y2], [0, 50, 100, 50]);
+  const down = plain(qrPaint(Object.assign({ gradientAngle: 90 }, base), 0, 0, 100));
+  assert.ok(Math.abs(down.x1 - 50) < 1e-9 && Math.abs(down.y1) < 1e-9 && Math.abs(down.y2 - 100) < 1e-9);
+  const diag = plain(qrPaint(Object.assign({ gradientAngle: 45 }, base), 0, 0, 100));
+  assert.ok(Math.abs(diag.x1) < 1e-9 && Math.abs(diag.y2 - 100) < 1e-9, "45° reaches the corners");
 });

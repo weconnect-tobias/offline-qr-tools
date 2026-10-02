@@ -6,7 +6,7 @@
 QR code tools that run entirely in your browser — **nothing is ever sent anywhere**.
 
 Create styled, print-ready QR codes for **Wi-Fi**, **web addresses**, **text**, **e-mail**, **phone**,
-**SMS**, **contact cards (vCard)** and **locations**. Swedish and English UI.
+**SMS**, **contact cards (vCard)**, **locations**, **calendar events** and **Swish payments**. Swedish and English UI.
 
 ## Features
 
@@ -14,15 +14,27 @@ Create styled, print-ready QR codes for **Wi-Fi**, **web addresses**, **text**, 
 - **Web address**: only `http`/`https`; blocks `javascript:` links and `user@host` phishing tricks,
   warns about unencrypted `http` and look-alike (punycode) domains
 - **Text**, **e-mail** (recipient, subject, message), **phone**, **SMS**, **contact card**
-  (vCard 3.0) and **location** (coordinates)
+  (vCard 3.0), **location** (coordinates) and **calendar event** (title, place, start/end or
+  all day, description — opens "add to calendar" on the phone)
+- **Swish**: mobile number, company Swish number or 90 account, with optional amount and message
+  (locked or editable by the payer) — opens the Swish app straight from the phone camera
 - Direct links to a type, e.g. `index.html#url` or `index.html#vcard`
 - Opens in your browser's language (Swedish or English, otherwise English), remembers a manual
   choice, and `?lang=sv` / `?lang=en` in a link forces a language
 - Styling: 12 dot shapes (squares, small squares, rounded, circles, flowing, classy, diamonds,
   hexagons, plus signs, hearts, vertical and horizontal lines), 8 corner styles, color gradients
-  (linear or radial), a separate corner color, quick styles (Classic, Modern, Elegant, Playful,
+  (fixed directions, a custom angle or radial), a separate corner color, quick styles (Classic, Modern, Elegant, Playful,
   Minimal, Retro), logo, and frames: border, double, dashed, viewfinder corners, card, Polaroid,
   postage stamp, ribbon and speech bubble. Every shape combination is decode-tested.
+- Logo with an empty area behind it (the modules are removed, the code's positioning patterns
+  are kept), a white plate, or straight on top
+- Advanced: error correction level (automatic, or L/M/Q/H; always H with a logo) and the margin
+  around the code (2, 4 or 6 modules)
+- Transparent background for PNG and SVG
+- **Save and open designs** as a small file (`qr-design.json`) to reuse a look or share a company
+  profile — shapes, colors, frame, logo and settings, never the content or texts
+- Ready-made caption texts per content type ("Scan me!", "Free Wi-Fi – scan to connect",
+  "Save the contact", …)
 - **Scan self-test**: every design is decoded locally and checked byte-for-byte before you use it
 - Export as PNG, SVG or PDF
 - Print layouts: A4/Letter sign, folding table tent, business-card sheet (85 × 55 mm) with crop marks,
@@ -37,6 +49,8 @@ Create styled, print-ready QR codes for **Wi-Fi**, **web addresses**, **text**, 
   exists inside the QR code. (You can optionally print the network name, which is not secret.)
 - Every content type validates and escapes its input so nothing can inject extra fields into the
   code (e.g. extra e-mail recipients or vCard entries).
+- Design files only contain the appearance. Opened design files are validated field by field,
+  and a logo inside one goes through the same checks as an uploaded logo.
 - Uploaded logos are size-checked, type-checked by their file signature and re-encoded before use;
   SVG uploads are rejected.
 - Third-party libraries are vendored and verified by checksum — see [`vendor/README.md`](vendor/README.md).

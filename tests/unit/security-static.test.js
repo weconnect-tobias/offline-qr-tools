@@ -37,12 +37,25 @@ test("no inline scripts, <style> blocks or style attributes in index.html", () =
   assert.ok(!/\son[a-z]+="/i.test(html), "inline event handler found");
 });
 
-test("no remote URLs in app code (only the SVG namespace)", () => {
+// Addresses that are only ever written INTO a QR code (never requested by the app; the CSP
+// blocks all requests anyway). Each entry is limited to one file and must be justified.
+const QR_PAYLOAD_URLS = {
+  "js/core/qr-types.js": ["https://app.swish.nu/1/p/sw/"] // Swish payment link, same as Swish's own generator
+};
+
+test("no remote URLs in app code (only the SVG namespace and listed QR payload links)", () => {
   for (const f of appSources) {
+    const allowed = QR_PAYLOAD_URLS[f.split(path.sep).join("/")] || [];
     const urls = [...read(f).matchAll(/https?:\/\/[^\s"'`)<>]+/g)].map((m) => m[0])
-      .filter((u) => u !== "http://www.w3.org/2000/svg");
+      .filter((u) => u !== "http://www.w3.org/2000/svg" && allowed.indexOf(u) < 0);
     assert.deepEqual(urls, [], f);
   }
+});
+
+test("QR payload links are only used as payload data, never fetched", () => {
+  const src = read("js/core/qr-types.js");
+  assert.ok(!/\b(fetch|XMLHttpRequest|sendBeacon|WebSocket|EventSource|import\()/.test(src));
+  for (const list of Object.values(QR_PAYLOAD_URLS)) for (const u of list) assert.match(u, /^https:\/\/[a-z0-9.-]+\//);
 });
 
 test("no dangerous DOM / eval sinks in app code", () => {
@@ -84,4 +97,10 @@ test("localStorage is only used for the language choice (never form content)", (
     for (const u of uses) assert.match(u, /^localStorage\.setItem\(LANG_STORAGE_KEY, code\)$/, `${f}: ${u}`);
   }
   assert.ok(!appJs.some((f) => /sessionStorage|indexedDB|document\.cookie/.test(read(f))), "no other storage APIs");
+});
+
+// jQuery 4 removed these helpers; using one only fails at run time in the browser.
+test("no jQuery helpers that were removed in jQuery 4", () => {
+  const removed = /\$\.(trim|isArray|isFunction|isNumeric|isWindow|type|parseJSON|nodeName|camelCase|now|proxy|unique|holdReady)\(/;
+  for (const f of appJs) assert.ok(!removed.test(read(f)), f);
 });

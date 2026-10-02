@@ -64,6 +64,8 @@
   <label class="type-option"><input type="radio" name="qrType" value="sms"><span data-i18n="typeSms">Sms</span></label>
   <label class="type-option"><input type="radio" name="qrType" value="vcard"><span data-i18n="typeVcard">Kontakt</span></label>
   <label class="type-option"><input type="radio" name="qrType" value="geo"><span data-i18n="typeGeo">Plats</span></label>
+  <label class="type-option"><input type="radio" name="qrType" value="event"><span data-i18n="typeEvent">Kalenderhändelse</span></label>
+  <label class="type-option"><input type="radio" name="qrType" value="swish"><span data-i18n="typeSwish">Swish</span></label>
 </fieldset>
 
 <div class="type-panel" data-type="wifi">
@@ -192,6 +194,53 @@
   <p class="hint" id="geoHint" data-i18n="geoHint">Decimalform, t.ex. 58.9395 och 11.1712.</p>
 </div>
 
+<div class="type-panel" data-type="event" hidden>
+  <label for="evTitle" data-i18n="evTitleLabel">Rubrik</label>
+  <input type="text" id="evTitle" maxlength="120" autocomplete="off" data-i18n-placeholder="evTitlePlaceholder" placeholder="T.ex. Öppet hus">
+  <label for="evLocation" data-i18n="evLocationLabel">Plats (valfritt)</label>
+  <input type="text" id="evLocation" maxlength="150" autocomplete="off">
+  <label class="inline-check">
+    <input type="checkbox" id="evAllDay">
+    <span data-i18n="evAllDayLabel">Heldag</span>
+  </label>
+  <div class="row">
+    <div><label for="evStartDate" data-i18n="evStartDateLabel">Startdatum</label><input type="date" id="evStartDate" min="1900-01-01" max="2999-12-31"></div>
+    <div class="ev-time"><label for="evStartTime" data-i18n="evStartTimeLabel">Starttid</label><input type="time" id="evStartTime"></div>
+  </div>
+  <div class="row">
+    <div><label for="evEndDate" data-i18n="evEndDateLabel">Slutdatum (valfritt)</label><input type="date" id="evEndDate" min="1900-01-01" max="2999-12-31"></div>
+    <div class="ev-time"><label for="evEndTime" data-i18n="evEndTimeLabel">Sluttid (valfritt)</label><input type="time" id="evEndTime"></div>
+  </div>
+  <label for="evDescription" data-i18n="evDescriptionLabel">Beskrivning (valfritt)</label>
+  <textarea id="evDescription" rows="3" maxlength="500" autocomplete="off"></textarea>
+  <p class="hint" id="evHint" data-i18n="evHint">Tiden visas likadant på alla telefoner. Utan sluttid blir händelsen en timme lång.</p>
+</div>
+
+<div class="type-panel" data-type="swish" hidden>
+  <label for="swNumber" data-i18n="swNumberLabel">Swish-nummer</label>
+  <input type="text" id="swNumber" inputmode="tel" maxlength="20" autocomplete="off" aria-describedby="swNumberHint" placeholder="070-123 45 67">
+  <p class="hint" id="swNumberHint" data-i18n="swNumberHint">Mobilnummer, företagets Swish-nummer (123…) eller ett 90-konto.</p>
+  <div class="row">
+    <div><label for="swAmount" data-i18n="swAmountLabel">Belopp i kr (valfritt)</label><input type="text" id="swAmount" inputmode="decimal" maxlength="12" autocomplete="off" placeholder="100"></div>
+    <div><label for="swMessage" data-i18n="swMessageLabel">Meddelande (valfritt)</label><input type="text" id="swMessage" maxlength="50" autocomplete="off"></div>
+  </div>
+  <div class="row">
+    <div>
+      <label class="inline-check">
+        <input type="checkbox" id="swAmountLocked" aria-describedby="swHint">
+        <span data-i18n="swAmountLockedLabel">Lås beloppet</span>
+      </label>
+    </div>
+    <div>
+      <label class="inline-check">
+        <input type="checkbox" id="swMessageLocked" aria-describedby="swHint">
+        <span data-i18n="swMessageLockedLabel">Lås meddelandet</span>
+      </label>
+    </div>
+  </div>
+  <p class="hint" id="swHint" data-i18n="swHint">Låsta fält kan inte ändras av betalaren. Ett tomt meddelande kan låsas; beloppet kan bara låsas när det är ifyllt. Numret är alltid låst.</p>
+</div>
+
 <div class="is-hidden notice" id="typeWarning" role="status"></div>
 <div class="is-hidden notice notice-error" id="formError" role="alert"></div>
 
@@ -254,7 +303,13 @@
   <option value="horizontal" data-i18n="gradHorizontal">Från vänster till höger</option>
   <option value="diagonal" data-i18n="gradDiagonal">Diagonal</option>
   <option value="radial" data-i18n="gradRadial">Från mitten</option>
+  <option value="angle" data-i18n="gradAngle">Egen vinkel</option>
 </select>
+
+<div class="is-hidden" id="gradientAngleWrap">
+  <label for="gradientAngle"><span data-i18n="gradientAngleLabel">Vinkel</span>: <output id="gradientAngleValue" for="gradientAngle">45°</output></label>
+  <input type="range" id="gradientAngle" min="0" max="355" step="5" value="45" aria-valuetext="45°">
+</div>
 
 <div class="is-hidden" id="gradientColor2Wrap">
     <span class="field-label" id="gradientColor2Caption" data-i18n="gradientColor2Label">Andra färgen</span>
@@ -317,10 +372,12 @@
   <label for="logoSize" data-i18n="logoSizeLabel">Logotypens storlek</label>
   <input type="range" id="logoSize" min="10" max="30" value="20" aria-valuetext="20 %">
 
-  <label class="inline-check">
-    <input type="checkbox" id="logoBgWhite" checked>
-    <span data-i18n="logoBgWhite">Vit bakgrund bakom logotypen (rekommenderas för bättre skanning)</span>
-  </label>
+  <label for="logoBackground" data-i18n="logoBackgroundLabel">Bakom logotypen</label>
+  <select id="logoBackground">
+    <option value="clear" selected data-i18n="logoBgClear">Tom yta – punkterna tas bort (rekommenderas)</option>
+    <option value="plate" data-i18n="logoBgPlate">Vit platta</option>
+    <option value="none" data-i18n="logoBgNone">Inget – logotypen ligger ovanpå punkterna</option>
+  </select>
 
   <div class="notice" data-i18n="logoNotice">
     En logotyp döljer en del av QR-koden.
@@ -386,6 +443,10 @@
 
   <label for="captionText" data-i18n="captionTextLabel">Text under QR-koden (valfritt)</label>
   <input type="text" id="captionText" maxlength="80" autocomplete="off" data-i18n-placeholder="captionTextPlaceholder" placeholder="Auto: Skanna för att ansluta till [SSID]">
+  <!-- Buttons are generated per content type from CAPTION_SUGGESTIONS in js/app.js. -->
+  <div class="preset-row" id="captionSuggestions" role="group" aria-labelledby="captionSuggestionsCaption">
+    <span class="field-label" id="captionSuggestionsCaption" data-i18n="captionSuggestionsLabel">Färdiga texter</span>
+  </div>
 
   <label for="textSize" data-i18n="textSizeLabel">Textstorlek</label>
   <select id="textSize">
@@ -448,6 +509,54 @@
 </details>
 
 <details>
+<summary data-i18n="advancedTitle">Avancerat</summary>
+<div class="details-body">
+
+<label for="ecLevel" data-i18n="ecLevelLabel">Felkorrigering</label>
+<select id="ecLevel" aria-describedby="ecHint">
+  <option value="auto" selected data-i18n="ecAuto">Automatisk (rekommenderas)</option>
+  <option value="L" data-i18n="ecL">Låg – 7 % (minst kod)</option>
+  <option value="M" data-i18n="ecM">Medel – 15 %</option>
+  <option value="Q" data-i18n="ecQ">Hög – 25 %</option>
+  <option value="H" data-i18n="ecH">Högst – 30 %</option>
+</select>
+<p class="hint" id="ecHint" data-i18n="ecHint">Högre nivå tål smuts och skador men ger fler och mindre punkter.</p>
+<div class="is-hidden notice" id="ecLogoNote" role="status" data-i18n="ecLogoNote">Med logotyp används alltid högsta nivån.</div>
+
+<label for="quietZone" data-i18n="quietZoneLabel">Marginal runt koden</label>
+<select id="quietZone">
+  <option value="4" selected data-i18n="quietStandard">Standard – 4 rutor (rekommenderas)</option>
+  <option value="2" data-i18n="quietNarrow">Smal – 2 rutor</option>
+  <option value="6" data-i18n="quietWide">Bred – 6 rutor</option>
+</select>
+<div class="is-hidden notice" id="quietZoneNote" role="status" data-i18n="quietZoneNote">En smal marginal fungerar med de flesta mobiler, men placera inte annat tryck tätt intill koden.</div>
+
+</div>
+</details>
+
+<details>
+<summary data-i18n="designTitle">Spara och öppna design</summary>
+<div class="details-body">
+
+<p class="hint" id="designHint" data-i18n="designHint">Sparar utseendet i en fil: former, färger, ram, logotyp och inställningar. Innehållet (nätverk, lösenord, adresser, kontaktuppgifter och texter) sparas aldrig, så filen går att dela.</p>
+
+<label class="inline-check is-hidden" id="designLogoWrap">
+  <input type="checkbox" id="designIncludeLogo" checked>
+  <span data-i18n="designIncludeLogo">Ta med logotypen</span>
+</label>
+
+<div class="design-row">
+  <button type="button" class="file-btn" id="saveDesign" aria-describedby="designHint" data-i18n="saveDesign">Spara design</button>
+  <input class="visually-hidden" type="file" id="designFile" accept="application/json,.json" aria-describedby="designHint designError">
+  <label class="file-btn" for="designFile" data-i18n="openDesign">Öppna design…</label>
+</div>
+<div class="is-hidden notice" id="designStatus" role="status"></div>
+<div class="is-hidden notice notice-error" id="designError" role="alert"></div>
+
+</div>
+</details>
+
+<details>
 <summary data-i18n="exportTitle">Export</summary>
 <div class="details-body">
 
@@ -467,6 +576,14 @@
     <option value="2000" data-i18n="sizeS2000">Extra stort (2000 px)</option>
     <option value="custom" data-i18n="sizeCustom">Egen storlek</option>
   </select>
+</div>
+
+<div id="transparentWrap">
+  <label class="inline-check">
+    <input type="checkbox" id="transparentBg" aria-describedby="transparentHint">
+    <span data-i18n="transparentLabel">Genomskinlig bakgrund</span>
+  </label>
+  <p class="hint" id="transparentHint" data-i18n="transparentHint">Bakgrundsfärgen används då bara för kontrastkontrollen. Välj den färg koden ska placeras på.</p>
 </div>
 
 <div class="is-hidden" id="customSizeWrap">
@@ -557,6 +674,7 @@
 <script src="js/core/util.js"></script>
 <script src="js/core/payload.js"></script>
 <script src="js/core/qr-types.js"></script>
+<script src="js/core/design.js"></script>
 <script src="js/render/scene.js"></script>
 <script src="js/render/shapes.js"></script>
 <script src="js/render/templates.js"></script>
@@ -568,6 +686,7 @@
 <script src="js/ui/logo.js"></script>
 <script src="js/app.js"></script>
 <script src="js/print-layouts.js"></script>
+<script src="js/ui/design-file.js"></script>
 
 </body>
 </html>

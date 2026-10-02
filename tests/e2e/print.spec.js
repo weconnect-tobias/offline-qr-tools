@@ -2,6 +2,10 @@
 
 const { test, expect, openApp, openAllSections, enterNetwork, pdfSearchableText, download } = require("./fixtures");
 
+// FICTIONAL TEST DATA - not a real network or password.
+// The values are chosen to be hard to encode: non-ASCII characters (é, Å, ö) test UTF-8,
+// and ";" ":" must be escaped in the Wi-Fi format. The tests also check that the password
+// never appears as readable text in any export.
 const SSID = "Kafé Åkerö";
 const PASSWORD = "Topsecret-4711";
 

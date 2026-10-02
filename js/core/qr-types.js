@@ -194,6 +194,162 @@ function buildGeo(input) {
   return { payload: "geo:" + text, summary: text };
 }
 
+/* ---- Calendar event (iCalendar, RFC 5545) ------------------------------ */
+
+// Parses "YYYY-MM-DD" (the value of <input type="date">) into a UTC timestamp, or null.
+function parseDate(raw) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(clean(raw));
+  if (!m) return null;
+  const y = +m[1], mo = +m[2], d = +m[3];
+  if (y < 1900 || y > 2999) return null;
+  const ms = Date.UTC(y, mo - 1, d);
+  const check = new Date(ms);
+  // Rejects dates that roll over, such as 2026-02-30.
+  return check.getUTCFullYear() === y && check.getUTCMonth() === mo - 1 && check.getUTCDate() === d ? ms : null;
+}
+
+// Parses "HH:MM" (the value of <input type="time">) into milliseconds since midnight, or null.
+function parseTime(raw) {
+  const m = /^(\d{2}):(\d{2})$/.exec(clean(raw));
+  if (!m || +m[1] > 23 || +m[2] > 59) return null;
+  return (+m[1] * 60 + +m[2]) * 60000;
+}
+
+function pad2(n) {
+  return (n < 10 ? "0" : "") + n;
+}
+
+// Timestamps are handled in UTC only as arithmetic; the output has no "Z" and no time zone.
+function icalDate(ms) {
+  const d = new Date(ms);
+  return d.getUTCFullYear() + pad2(d.getUTCMonth() + 1) + pad2(d.getUTCDate());
+}
+
+function icalDateTime(ms) {
+  const d = new Date(ms);
+  return icalDate(ms) + "T" + pad2(d.getUTCHours()) + pad2(d.getUTCMinutes()) + "00";
+}
+
+const DAY_MS = 24 * 3600 * 1000;
+const HOUR_MS = 3600 * 1000;
+
+// Times are written as "floating" local time (no time zone): an event at 14:00 shows at 14:00
+// on every phone, which is what people expect from a poster or an invitation.
+// All-day events use VALUE=DATE with an exclusive end date, as RFC 5545 requires.
+// Text values are escaped like vCard (RFC 5545 uses the same rules), so nothing can start a
+// new property or end the event early.
+function buildEvent(input) {
+  const title = clean(input.title);
+  if (!title) return { error: "event" };
+  const allDay = input.allDay === true;
+  const startDay = parseDate(input.startDate);
+  const startTime = allDay ? 0 : parseTime(input.startTime);
+  if (startDay === null || startTime === null) return { error: "errEventStart", visible: true };
+  const start = startDay + startTime;
+
+  let end;
+  const endDay = clean(input.endDate) ? parseDate(input.endDate) : startDay;
+  if (endDay === null) return { error: "errEventEnd", visible: true };
+  if (allDay) {
+    end = endDay + DAY_MS;
+  } else if (clean(input.endTime)) {
+    const endTime = parseTime(input.endTime);
+    if (endTime === null) return { error: "errEventEnd", visible: true };
+    end = endDay + endTime;
+  } else {
+    end = clean(input.endDate) ? endDay + startTime + HOUR_MS : start + HOUR_MS;
+  }
+  if (end <= start) return { error: "errEventEnd", visible: true };
+
+  const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "BEGIN:VEVENT", "SUMMARY:" + escapeVcard(title)];
+  if (allDay) {
+    lines.push("DTSTART;VALUE=DATE:" + icalDate(start), "DTEND;VALUE=DATE:" + icalDate(end));
+  } else {
+    lines.push("DTSTART:" + icalDateTime(start), "DTEND:" + icalDateTime(end));
+  }
+  if (clean(input.location)) lines.push("LOCATION:" + escapeVcard(input.location));
+  if (clean(input.description)) lines.push("DESCRIPTION:" + escapeVcard(input.description));
+  lines.push("END:VEVENT", "END:VCALENDAR");
+
+  const payload = lines.join("\r\n");
+  if (tooLong(payload)) return { error: "errTextTooLong", visible: true };
+  return { payload: payload, summary: title };
+}
+
+/* ---- Swish payment -------------------------------------------------------- */
+
+// Swish's own QR generator encodes a plain https link. The phone camera opens it and the
+// universal link hands it to the Swish app (the older "C<payee>;<amount>;…" text only works
+// from the scanner inside the app). Parameters: sw = payee, amt = amount (decimal point),
+// cur = SEK, msg = message, edit = fields the payer may change (omitted = locked), src = qr.
+// The payee is never editable, so a printed code cannot be redirected to another number.
+// The link is built exactly like Swish's own QR generator (swish.nu/marknadsmaterial/qr-generator,
+// checked by decoding the codes it produces):
+//   ?sw=<payee>[&amt=<amount>&cur=SEK]&msg=<message, may be empty>[&edit=amt,msg]&src=qr
+// "msg" is always present: a locked empty message ("msg=" without edit) means the payer cannot
+// write one. An empty amount is simply left out and is always open; only a filled amount can
+// be locked. Defaults when no choice is given: a filled amount is locked, the message is locked
+// when filled and open when empty.
+const SWISH_BASE_URL = "https://app.swish.nu/1/p/sw/";
+const SWISH_MESSAGE_MAX = 50; // the app shows and stores 50 characters
+const SWISH_AMOUNT_MAX = 999999.99;
+
+// Mobile numbers 07xxxxxxxx (also written +46 7… or 0046 7…), company numbers 123xxxxxxx
+// and charity "90 accounts" 90xxxxx. Spaces, dashes and brackets are formatting only.
+function normalizeSwishNumber(raw) {
+  const text = clean(raw);
+  if (!/^\+?[\d\s\-()]+$/.test(text)) return null;
+  let digits = text.replace(/[^\d]/g, "");
+  if (text.charAt(0) === "+" && digits.indexOf("46") === 0) digits = "0" + digits.slice(2);
+  else if (digits.indexOf("0046") === 0) digits = "0" + digits.slice(4);
+  return /^07\d{8}$/.test(digits) || /^123\d{7}$/.test(digits) || /^90\d{5}$/.test(digits) ? digits : null;
+}
+
+// "149,50", "149.5" or "1 000" → "149.5" / "1000" (written like Swish's own generator, which
+// sends the amount as a number); null when invalid or out of range.
+function normalizeSwishAmount(raw) {
+  const text = clean(raw).replace(/[\s\u00a0]/g, "").replace(",", ".");
+  if (!/^\d{1,6}(\.\d{1,2})?$/.test(text)) return null;
+  const value = Number(text);
+  if (value < 1 || value > SWISH_AMOUNT_MAX) return null;
+  return String(value);
+}
+
+// "0701234567" → "070-123 45 67", "1231234567" → "123 123 45 67" (display only).
+function formatSwishNumber(n) {
+  if (n.indexOf("07") === 0) return n.slice(0, 3) + "-" + n.slice(3, 6) + " " + n.slice(6, 8) + " " + n.slice(8);
+  if (n.indexOf("123") === 0) return n.slice(0, 3) + " " + n.slice(3, 6) + " " + n.slice(6, 8) + " " + n.slice(8);
+  return n.slice(0, 2) + " " + n.slice(2);
+}
+
+function buildSwish(input) {
+  if (!clean(input.number)) return { error: "swish" };
+  const number = normalizeSwishNumber(input.number);
+  if (!number) return { error: "errSwishNumber", visible: true };
+
+  let amount = null;
+  if (clean(input.amount)) {
+    amount = normalizeSwishAmount(input.amount);
+    if (amount === null) return { error: "errSwishAmount", visible: true };
+  }
+  const message = clean(input.message);
+  // Control characters (line breaks etc.) cannot be shown in Swish and are rejected.
+  if (message.length > SWISH_MESSAGE_MAX || /[\u0000-\u001f\u007f]/.test(message)) return { error: "errSwishMessage", visible: true };
+
+  const amountLocked = Boolean(amount) && (typeof input.amountLocked === "boolean" ? input.amountLocked : true);
+  const messageLocked = typeof input.messageLocked === "boolean" ? input.messageLocked : Boolean(message);
+  const edit = [];
+  if (amount && !amountLocked) edit.push("amt");
+  if (!messageLocked) edit.push("msg");
+
+  const params = ["sw=" + number];
+  if (amount) params.push("amt=" + amount, "cur=SEK");
+  params.push("msg=" + encodeURIComponent(message));
+  if (edit.length) params.push("edit=" + edit.join(","));
+  params.push("src=qr");
+  return { payload: SWISH_BASE_URL + "?" + params.join("&"), summary: formatSwishNumber(number) };
+}
+
 /* ---- Wi-Fi (rules live in core/payload.js) ----------------------------- */
 
 function buildWifi(input) {
@@ -212,7 +368,9 @@ const QR_TYPES = {
   phone: { build: buildPhone },
   sms: { build: buildSms },
   vcard: { build: buildVcard },
-  geo: { build: buildGeo }
+  geo: { build: buildGeo },
+  event: { build: buildEvent },
+  swish: { build: buildSwish }
 };
 
 const QR_TYPE_IDS = Object.keys(QR_TYPES);

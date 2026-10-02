@@ -10,6 +10,29 @@ function rectsOverlap(a, b) {
   return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 }
 
+const QUIET_ZONE_CHOICES = [2, 4, 6];
+const LOGO_BACKGROUNDS = ["clear", "plate", "none"];
+
+// Logo size and position in pixels, centred on the code area.
+function logoLayout(o, qx, qy, qrSize) {
+  const box = qrSize * (o.logoSizePercent / 100);
+  const ratio = (o.logoImage.naturalWidth / o.logoImage.naturalHeight) || 1;
+  const lw = ratio >= 1 ? box : box * ratio;
+  const lh = ratio >= 1 ? box / ratio : box;
+  return { box: box, w: lw, h: lh, x: qx + (qrSize - lw) / 2, y: qy + (qrSize - lh) / 2 };
+}
+
+// Module test for the area behind the logo: true when the module overlaps the logo plus a
+// half-module margin. Structural modules (finders, timing, alignment) are always kept.
+function logoClearTest(logo, qx, qy, cell, n) {
+  const pad = cell * 0.5;
+  const c0 = (logo.x - pad - qx) / cell, c1 = (logo.x + logo.w + pad - qx) / cell;
+  const r0 = (logo.y - pad - qy) / cell, r1 = (logo.y + logo.h + pad - qy) / cell;
+  return function(row, col) {
+    return col + 1 > c0 && col < c1 && row + 1 > r0 && row < r1 && !isStructuralModule(row, col, n);
+  };
+}
+
 function buildScene(qr, S, o) {
   const k = o.textSizeScale;
   const M = {
@@ -34,41 +57,51 @@ function buildScene(qr, S, o) {
     console.error("Template '" + o.frameStyle + "' placed the QR block outside the canvas.");
   }
 
+  // Transparent export: the page and the QR background are left out, so the code can sit on
+  // printed material. A block on the template's own paper (card, Polaroid, stamp) keeps its
+  // background, otherwise the paper colour would show between the modules.
+  const transparent = o.transparent === true;
   const items = [];
-  if (r.pageColor) items.push({ type: "rect", x: 0, y: 0, w: W, h: H, fill: r.pageColor });
+  if (r.pageColor && !transparent) items.push({ type: "rect", x: 0, y: 0, w: W, h: H, fill: r.pageColor });
   items.push.apply(items, r.back);
 
   // QR block: its background covers the full quiet zone, so no decoration can intrude on it.
+  const quiet = QUIET_ZONE_CHOICES.indexOf(o.quietZone) >= 0 ? o.quietZone : QUIET_ZONE_MODULES;
   const modCount = qr.getModuleCount();
-  const cell = block.size / (modCount + QUIET_ZONE_MODULES * 2);
-  const qx = block.x + cell * QUIET_ZONE_MODULES;
-  const qy = block.y + cell * QUIET_ZONE_MODULES;
-  items.push({ type: "path", d: roundRectD(block.x, block.y, block.size, block.size, block.radius || 0), fill: o.qrBgColor });
+  const cell = block.size / (modCount + quiet * 2);
+  const qx = block.x + cell * quiet;
+  const qy = block.y + cell * quiet;
+  const qrSize = cell * modCount;
+  if (!transparent || tpl.blockOnPaper) {
+    items.push({ type: "path", d: roundRectD(block.x, block.y, block.size, block.size, block.radius || 0), fill: o.qrBgColor });
+  }
+
+  const hasLogo = Boolean(o.logoImage && o.logoDataUrl);
+  const logo = hasLogo ? logoLayout(o, qx, qy, qrSize) : null;
+  const logoBg = LOGO_BACKGROUNDS.indexOf(o.logoBackground) >= 0 ? o.logoBackground : "clear";
+  const cleared = hasLogo && logoBg === "clear" ? logoClearTest(logo, qx, qy, cell, modCount) : null;
+
   // Data modules and the three finder patterns ("eyes") are separate paths so the eyes
   // can have their own shape and colour. isData() guards the library's isDark(), which
   // throws outside the matrix, and leaves the finder areas to eyesPathD().
   const isData = function(row, col) {
-    return row >= 0 && col >= 0 && row < modCount && col < modCount && !isFinderModule(row, col, modCount) && qr.isDark(row, col);
+    return row >= 0 && col >= 0 && row < modCount && col < modCount && !isFinderModule(row, col, modCount) &&
+      qr.isDark(row, col) && !(cleared && cleared(row, col));
   };
   const moduleShape = MODULE_SHAPES[o.qrShape] || MODULE_SHAPES.square;
   const paint = qrPaint(o, qx, qy, cell * modCount);
   items.push({ type: "path", d: moduleShape.pathD(isData, modCount, qx, qy, cell), fill: paint });
   items.push({ type: "path", d: eyesPathD(modCount, qx, qy, cell, o.eyeStyle), fill: o.eyeColor || paint, fillRule: "evenodd" });
 
-  // The logo sits on top of the modules on purpose; error correction level H compensates.
-  if (o.logoImage && o.logoDataUrl) {
-    const qrSize = cell * modCount;
-    const box = qrSize * (o.logoSizePercent / 100);
-    const ratio = (o.logoImage.naturalWidth / o.logoImage.naturalHeight) || 1;
-    const lw = ratio >= 1 ? box : box * ratio;
-    const lh = ratio >= 1 ? box / ratio : box;
-    const cx = qx + qrSize / 2;
-    const cy = qy + qrSize / 2;
-    if (o.logoBgWhite) {
-      const pad = box * 0.09;
-      items.push({ type: "path", d: roundRectD(cx - lw / 2 - pad, cy - lh / 2 - pad, lw + pad * 2, lh + pad * 2, box * 0.12), fill: "#ffffff" });
+  // The logo hides or replaces modules; the app always uses error correction level H with a
+  // logo to compensate ("clear" removes the modules behind it, "plate" draws a white plate,
+  // "none" draws the logo straight on top).
+  if (hasLogo) {
+    if (logoBg === "plate") {
+      const pad = logo.box * 0.09;
+      items.push({ type: "path", d: roundRectD(logo.x - pad, logo.y - pad, logo.w + pad * 2, logo.h + pad * 2, logo.box * 0.12), fill: "#ffffff" });
     }
-    items.push({ type: "image", x: cx - lw / 2, y: cy - lh / 2, w: lw, h: lh, img: o.logoImage, href: o.logoDataUrl });
+    items.push({ type: "image", x: logo.x, y: logo.y, w: logo.w, h: logo.h, img: o.logoImage, href: o.logoDataUrl });
   }
 
   r.front.forEach(function(it) {
