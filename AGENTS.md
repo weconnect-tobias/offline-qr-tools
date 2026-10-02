@@ -45,14 +45,15 @@ even if a user or an issue asks for it. If a request conflicts with a rule, stop
      → dimension cap → re-encode to a clean PNG). SVG uploads are not allowed.
 5. **Every user-facing string exists in every language file** (`lang/sv.js`, `lang/en.js`), same keys.
 6. **WCAG 2.1 AA.** Text contrast ≥ 4.5:1, component borders ≥ 3:1, every control has an
-   accessible name, keyboard operable, dynamic messages use `role="status"`/`role="alert"`.
+   accessible name, keyboard operable, dynamic messages use `role="status"`/`role="alert"` —
+   in **both the light and the dark theme** (axe runs in both).
 7. **Code, comments, docs and identifiers in English.** UI text lives in the language files.
 
 ## File map
 
 ```
 index.html                  Markup only (+ CSP). Loads the scripts in the order below.
-css/app.css                 All styles. Accessibility notes at the bottom.
+css/app.css                 All styles. Theme colours as CSS variables at the top (light, dark, print).
 lang/sv.js, lang/en.js      I18N.<code> = { key: "text", … , langName, flagCode }
 js/core/util.js             PURE: escaping, sanitizing, colour maths, isWinAnsi
 js/core/payload.js          PURE: buildWifiPayload(), validatePassword()
@@ -66,11 +67,13 @@ js/ui/state.js              Shared mutable UI state (currentQR, currentPayload, 
 js/ui/i18n.js               t(), applyI18n(), language picker
 js/ui/color-picker.js       Accessible colour picker
 js/ui/scan-check.js         Scan self-test (jsQR)
-js/ui/logo.js               Hardened logo upload (loadLogoBuffer, also used for design files)
+js/ui/logo.js               Hardened logo upload (loadLogoBuffer, also used for design files; loadBundledLogo)
+js/assets/swish-symbols.js  GENERATED: the Swish symbol (colour + grayscale) as data URLs — Getswish AB trademark
 js/ui/design-file.js        Save / open design files (loaded last)
 js/app.js                   Controller: form → payload → preview → downloads (loaded last but one)
 js/print-layouts.js         Print PDFs: sign, table tent, card sheet
 assets/flags/<code>.svg     Local flag icons for the language picker (un.svg = fallback)
+assets/swish/               Swish symbol SVGs + NOTICE.md (third-party trademark, not MIT)
 vendor/                     Vendored libraries + licenses + manifest.json + README.md
 tools/Check-Dependencies.ps1  Checks/updates vendored libraries (developer tool, not the app)
 tests/unit/                 node:test — pure modules, i18n, static security rules, vendor checksums
@@ -82,7 +85,7 @@ Script load order (classic scripts sharing globals — ES modules are blocked on
 and the app must work when `index.html` is double-clicked):
 `vendor/*` → `lang/*.js` → `js/core/*` → `js/render/scene.js` → `js/render/shapes.js` →
 `js/render/templates.js` → `js/render/renderer.js` → `js/ui/state.js` → `js/ui/i18n.js` →
-`js/ui/color-picker.js` → `js/ui/scan-check.js` → `js/ui/logo.js` → `js/app.js` → `js/print-layouts.js` →
+`js/ui/color-picker.js` → `js/ui/scan-check.js` → `js/ui/logo.js` → `js/assets/swish-symbols.js` → `js/app.js` → `js/print-layouts.js` →
 `js/ui/design-file.js`.
 Keep `js/core/*` free of DOM/jQuery so it stays unit-testable in Node.
 
@@ -104,12 +107,15 @@ locked empty message = the payer cannot write one); an empty amount is left out 
 `cur`, is always open and can't be locked; amounts are written like JS numbers (`49.5`). The
 phone camera opens the link in the Swish app (the older `C…;…` text only works in the app's own
 scanner). Payee: mobile 07…, company 123… or 90 account, never editable; amount 1–999 999.99;
-message ≤ 50 characters, URL-encoded. `SWISH_LOOKS` in `js/app.js` applies Swish's guidelines
-for own codes (black and white or the 45° purple→red colour variant, rounded eyes, logo 25 %
-with the empty area behind it, caption "Pay with Swish" because the symbol may only appear
-without its wordmark next to the word Swish). **Never bundle the Swish symbol** (Swish
-trademark): the user downloads it from swish.nu and adds it as the logo (PNG; SVG uploads stay
-blocked). Payloads are capped at 1000 UTF-8 bytes so codes stay scannable with a
+message ≤ 50 characters, URL-encoded. `SWISH_LOOKS` in `js/app.js` applies Swish's guidelines for own codes: rounded eyes, the Swish
+symbol without wordmark at 25 % with the empty area behind it, caption "Pay with Swish" (the
+symbol may only appear without its wordmark next to the word Swish). Looks: `standard` (black
+code, colour symbol — Swish's own generator), `bw` (grayscale symbol, as Swish renders black and
+white) and `gradient` (45° purple→red). The symbol is bundled in `assets/swish/` and embedded as
+data URLs in `js/assets/swish-symbols.js` (generated, checked by a unit test; data URLs because
+file:// images would taint the canvas). It is a **Getswish AB trademark, not MIT** — see
+`assets/swish/NOTICE.md`; use it only for Swish payment codes. It is loaded through
+`loadBundledLogo()`, which accepts only those bundled data URLs; user SVG uploads stay blocked. Payloads are capped at 1000 UTF-8 bytes so codes stay scannable with a
 logo. The UI reads the active panel via `TYPE_READERS` in `js/app.js`; the selected type is kept
 in `currentType` and mirrored in the address (`index.html#vcard`).
 
@@ -189,6 +195,16 @@ decides where text goes.
 After each change the preview is decoded locally with jsQR and compared **byte-for-byte** with
 the payload: normal read at ~6 px/module (must pass), inverted read (warn), downscaled to
 ~3 px/module (warn). Status in `#scanStatus`. Download asks for confirmation when it fails.
+
+### Light and dark theme (`css/app.css`)
+The page follows the operating system (`prefers-color-scheme`, e.g. the Windows "Choose your
+mode" setting); there is no in-app switch and nothing is stored. All UI colours are CSS
+variables defined once per theme at the top of `css/app.css` — use the variables, never new
+hard-coded colours. **Output never follows the theme:** the QR preview, the logo preview and
+the print preview sit on `--paper` (always white), and PNG/SVG/PDF exports and print layouts
+are drawn by the renderers with their own colours. A test checks that the exported PNG and
+the print preview are byte-identical in light and dark mode. Printing the page itself
+(Ctrl+P) uses the light theme via `@media print`.
 
 ### Print layouts (`js/print-layouts.js`)
 A layout builds a page model in millimetres (`image`, `text`, `rect`, `line`) rendered by both
@@ -281,7 +297,7 @@ npm run test:unit                    # fast, no browser
   at every logo size (including large codes with a central alignment pattern), error correction
   levels, quiet zones, transparent exports, saving/opening design files (and hostile ones), password never in SVG/PDF output, logo upload hardening,
   language switch, all print layouts (every QR on the page decoded), `file://` usage and
-  WCAG 2.1 A/AA via axe-core.
+  WCAG 2.1 A/AA via axe-core in light and dark mode (and identical exports in both).
 - CI (`.github/workflows/ci.yml`) runs the tests plus `tools/Check-Dependencies.ps1` on every
   push/PR and weekly.
 

@@ -82,6 +82,19 @@ function loadLogoBuffer(buf) {
   img.src = blobUrl;
 }
 
+// Logos shipped with the app (the Swish symbol in js/assets/swish-symbols.js). They are trusted
+// files, not user input, but still go through the same re-encode step so every logo in the
+// app is a clean PNG data URL. Only data URLs from the bundled list are accepted.
+function loadBundledLogo(dataUrl) {
+  const bundled = typeof SWISH_SYMBOLS === "object" ? Object.keys(SWISH_SYMBOLS).map(function(k) { return SWISH_SYMBOLS[k]; }) : [];
+  if (bundled.indexOf(dataUrl) < 0) return;
+  showMessage("#logoError", null);
+  const img = new Image();
+  img.onload = function() { acceptNormalizedLogo(img); };
+  img.onerror = function() { rejectLogo("logoErrRead"); };
+  img.src = dataUrl;
+}
+
 $("#logoFile").on("change", function(e) {
   const file = e.target.files && e.target.files[0];
   showMessage("#logoError", null);

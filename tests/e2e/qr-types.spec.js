@@ -178,46 +178,42 @@ test("swish: lock boxes follow their fields until clicked; an empty message can 
   expect(await page.evaluate(() => currentPayload)).toBe("https://app.swish.nu/1/p/sw/?sw=0701234567&msg=&src=qr");
 });
 
-test("swish: the recommended looks apply Swish's guidelines and stay scannable", async ({ guarded: page }) => {
+test("swish: the recommended looks add the bundled Swish symbol and stay scannable", async ({ guarded: page }) => {
   await openApp(page);
   await openAllSections(page);
   await page.click("input[name=qrType][value=swish] + span");
   await page.fill("#swNumber", "1231234567");
-  await expect(page.locator("#swLogoNote")).toBeHidden();
 
-  await page.click("[data-swish-look=bw]");
-  await expect(page.locator("#eyeStyle")).toHaveValue("rounded");
-  await expect(page.locator("#qrColor")).toHaveValue("#000000");
-  await expect(page.locator("#gradient")).toHaveValue("none");
-  await expect(page.locator("#logoSize")).toHaveValue("25");
-  await expect(page.locator("#logoBackground")).toHaveValue("clear");
-  await expect(page.locator("#textStyle")).toHaveValue("plain");
-  await expect(page.locator("#captionText")).toHaveValue("Betala med Swish");
-  // No symbol yet: tell the user where to get it (it is not bundled).
-  await expect(page.locator("#swLogoNote")).toBeVisible();
-  await waitForScan(page);
-  await expect(page.locator("#scanStatus")).toHaveAttribute("data-state", "ok");
+  const looks = { standard: ["#000000", "none"], bw: ["#000000", "none"], gradient: ["#6835ed", "angle"] };
+  const symbols = {};
+  for (const [look, [qrColor, gradient]] of Object.entries(looks)) {
+    await page.click(`[data-swish-look=${look}]`);
+    await expect(page.locator("#logoPreview img")).toHaveAttribute("src", /^data:image\/png;base64,/);
+    await expect(page.locator("#eyeStyle")).toHaveValue("rounded");
+    await expect(page.locator("#qrColor")).toHaveValue(qrColor);
+    await expect(page.locator("#gradient")).toHaveValue(gradient);
+    await expect(page.locator("#logoSize")).toHaveValue("25");
+    await expect(page.locator("#logoBackground")).toHaveValue("clear");
+    await expect(page.locator("#textStyle")).toHaveValue("plain");
+    await expect(page.locator("#captionText")).toHaveValue("Betala med Swish");
+    await waitForScan(page);
+    await expect(page.locator("#scanStatus")).toHaveAttribute("data-state", "ok");
+    // Which symbol was used: count coloured pixels of the re-encoded logo.
+    symbols[look] = await page.evaluate(() => {
+      const c = document.createElement("canvas"); c.width = logoImage.naturalWidth; c.height = logoImage.naturalHeight;
+      const x = c.getContext("2d"); x.drawImage(logoImage, 0, 0);
+      const d = x.getImageData(0, 0, c.width, c.height).data;
+      let coloured = 0;
+      for (let i = 0; i < d.length; i += 16) if (d[i + 3] > 0 && Math.max(d[i], d[i + 1], d[i + 2]) - Math.min(d[i], d[i + 1], d[i + 2]) > 30) coloured++;
+      return coloured;
+    });
+  }
+  expect(symbols.standard).toBeGreaterThan(1000);
+  expect(symbols.gradient).toBeGreaterThan(1000);
+  expect(symbols.bw).toBe(0);
 
-  await page.click("[data-swish-look=color]");
-  await expect(page.locator("#gradient")).toHaveValue("angle");
-  await expect(page.locator("#gradientAngle")).toHaveValue("45");
-  await expect(page.locator("#qrColor")).toHaveValue("#6835ed");
-  await expect(page.locator("#gradientColor2")).toHaveValue("#f13b30");
-  await expect(page.locator("#contrastWarning")).toBeHidden();
-  await waitForScan(page);
-  await expect(page.locator("#scanStatus")).toHaveAttribute("data-state", "ok");
-
-  // A stand-in symbol (round, white background) at 25 % with the empty area behind it.
-  const dataUrl = await page.evaluate(() => {
-    const c = document.createElement("canvas"); c.width = c.height = 400;
-    const x = c.getContext("2d"); x.fillStyle = "#fff"; x.beginPath(); x.arc(200, 200, 200, 0, 7); x.fill();
-    x.fillStyle = "#6835ed"; x.beginPath(); x.arc(200, 200, 130, 0, 7); x.fill();
-    return c.toDataURL("image/png");
-  });
-  const file = test.info().outputPath("symbol.png");
-  require("node:fs").writeFileSync(file, Buffer.from(dataUrl.split(",")[1], "base64"));
-  await page.setInputFiles("#logoFile", file);
-  await waitForScan(page);
-  await expect(page.locator("#swLogoNote")).toBeHidden();
-  await expect(page.locator("#scanStatus")).toHaveAttribute("data-state", "ok");
+  // Exports work (the symbol is embedded as a data URL, so the canvas is never tainted).
+  await page.selectOption("#exportFormat", "png");
+  const png = await download(page, () => page.click("#download"));
+  expect(await decodePng(page, png.data)).toBe("https://app.swish.nu/1/p/sw/?sw=1231234567&msg=&edit=msg&src=qr");
 });

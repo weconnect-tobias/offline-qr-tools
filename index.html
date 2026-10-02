@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <meta name="referrer" content="no-referrer">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'none'; font-src 'none'; object-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'">
 <title>Offline QR Tools</title>
@@ -242,11 +243,11 @@
 
   <div class="preset-row" role="group" aria-labelledby="swLookCaption" aria-describedby="swLookHint">
     <span class="field-label" id="swLookCaption" data-i18n="swLookLabel">Swish rekommenderade utseende</span>
-    <button type="button" class="small-btn" data-swish-look="bw" data-i18n="swLookBw">Svartvit (rekommenderas)</button>
-    <button type="button" class="small-btn" data-swish-look="color" data-i18n="swLookColor">Färg</button>
+    <button type="button" class="small-btn" data-swish-look="standard" data-i18n="swLookStandard">Svart kod, färgsymbol</button>
+    <button type="button" class="small-btn" data-swish-look="bw" data-i18n="swLookBw">Svartvit</button>
+    <button type="button" class="small-btn" data-swish-look="gradient" data-i18n="swLookGradient">Färgövergång</button>
   </div>
-  <p class="hint" id="swLookHint" data-i18n="swLookHint">Rundade hörn, Swish-symbolen i mitten (25 % av kodens bredd) och texten "Betala med Swish".</p>
-  <div class="is-hidden notice" id="swLogoNote" role="status" data-i18n="swLogoNote">Lägg till Swish-symbolen utan ordmärke under Logotyp. Den finns att ladda ner på swish.nu under Marknadsmaterial → Logotyp. Symbolen tillhör Swish och ingår inte i det här programmet.</div>
+  <p class="hint" id="swLookHint" data-i18n="swLookHint">Lägger till Swish-symbolen i mitten (25 % av kodens bredd) med rundade hörn och texten "Betala med Swish", enligt Swish riktlinjer. Swish och Swish-symbolen är varumärken som tillhör Getswish AB.</p>
 </div>
 
 <div class="is-hidden notice" id="typeWarning" role="status"></div>
@@ -692,6 +693,7 @@
 <script src="js/ui/color-picker.js"></script>
 <script src="js/ui/scan-check.js"></script>
 <script src="js/ui/logo.js"></script>
+<script src="js/assets/swish-symbols.js"></script>
 <script src="js/app.js"></script>
 <script src="js/print-layouts.js"></script>
 <script src="js/ui/design-file.js"></script>

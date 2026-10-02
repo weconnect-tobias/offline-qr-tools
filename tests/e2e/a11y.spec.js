@@ -49,3 +49,55 @@ test("reflows at 320 px without horizontal scrolling", async ({ guarded: page })
   await openApp(page);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
 });
+
+/* ---- Dark mode (follows the operating system, e.g. Windows "Choose your mode") ---------- */
+
+test.describe("dark mode", () => {
+  test.use({ colorScheme: "dark" });
+
+  test("no WCAG 2.1 A/AA violations in dark mode with all sections, an error and notices visible", async ({ guarded: page }) => {
+    await openApp(page);
+    await openAllSections(page);
+    await enterNetwork(page, "Kafé", "short");
+    await page.selectOption("#textStyle", "banner");
+    await page.uncheck("#autoTextColor");
+    await page.click("#qrColorSwatch");
+    await page.waitForTimeout(400);
+    expect(await axeViolations(page)).toEqual([]);
+  });
+
+  test("the UI is dark but the QR preview stays on white paper", async ({ guarded: page }) => {
+    await openApp(page);
+    const colors = await page.evaluate(() => ({
+      body: getComputedStyle(document.body).backgroundColor,
+      preview: getComputedStyle(document.getElementById("qrcode")).backgroundColor
+    }));
+    expect(colors.body).toBe("rgb(18, 20, 23)");
+    expect(colors.preview).toBe("rgb(255, 255, 255)");
+  });
+});
+
+test("exports and print previews are identical in light and dark mode", async ({ browser }) => {
+  const results = [];
+  for (const colorScheme of ["light", "dark"]) {
+    const context = await browser.newContext({ colorScheme, locale: "sv-SE", acceptDownloads: true });
+    const page = await context.newPage();
+    await openApp(page);
+    await openAllSections(page);
+    await enterNetwork(page, "Kafé Åkerö", "Hemligt;lösen:1234");
+    await page.selectOption("#textStyle", "plain");
+    await page.fill("#titleText", "Gäst-WiFi");
+    await page.waitForTimeout(500);
+    const [dl] = await Promise.all([page.waitForEvent("download"), page.click("#download")]);
+    const png = fs.readFileSync(await dl.path());
+    const print = await page.evaluate(() => {
+      const c = document.querySelector("#printPreview canvas");
+      return c ? c.toDataURL() : null;
+    });
+    results.push({ colorScheme, png, print });
+    await context.close();
+  }
+  expect(results[0].png.equals(results[1].png)).toBe(true);
+  expect(results[0].print).not.toBeNull();
+  expect(results[0].print).toBe(results[1].print);
+});

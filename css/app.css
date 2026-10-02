@@ -1,11 +1,86 @@
+/* ---- Colour themes -----------------------------------------------------------------------
+ * The UI follows the operating system's light/dark setting (prefers-color-scheme), e.g. the
+ * Windows "Choose your mode" setting. Only the app chrome changes: the QR preview, the print
+ * preview and every export are drawn with their own colours on white "paper", so downloads and
+ * printouts never come out dark. All pairs below meet WCAG 2.1 AA (text >= 4.5:1, borders and
+ * focus >= 3:1) in both themes; tests/e2e/a11y.spec.js runs axe in light and dark. */
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --surface: #ffffff;          /* popovers, buttons, inputs */
+  --surface-hover: #f3f4f6;
+  --button-bg: #f0f0f0;        /* main action buttons */
+  --text: #1a1a1a;
+  --text-muted: #6b7280;
+  --text-sub: #666666;
+  --border-control: #767676;   /* borders of interactive controls (>= 3:1) */
+  --border-soft: #dddddd;      /* decorative separators */
+  --border-strong: #1f2937;
+  --focus: #1d4ed8;
+  --pill-checked-bg: #1a1a1a;
+  --pill-checked-text: #ffffff;
+  --shadow: rgba(0, 0, 0, 0.12);
+  --paper: #ffffff;            /* QR and print previews: always white, like the output */
+  --notice-text: #6b4f12; --notice-bg: #fcf3e3; --notice-border: #f0dfb5;
+  --error-text: #9b1c1c; --error-bg: #fdecec; --error-border: #f5c2c2;
+  --status-text: #4b5563; --status-bg: #f9fafb; --status-border: #e5e7eb;
+  --ok-text: #14532d; --ok-bg: #f0fdf4; --ok-border: #bbf7d0; --ok-icon: #15803d;
+  --warn-text: #78350f; --warn-bg: #fffbeb; --warn-border: #fde68a; --warn-icon: #b45309;
+  --fail-text: #7f1d1d; --fail-bg: #fef2f2; --fail-border: #fecaca; --fail-icon: #dc2626;
+  --qr-error: #c0392b;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #121417;
+    --surface: #1c1f24;
+    --surface-hover: #2a2f36;
+    --button-bg: #2f343c;
+    --text: #e8eaed;
+    --text-muted: #a3a9b3;
+    --text-sub: #b3b9c2;
+    --border-control: #8b9099;
+    --border-soft: #353a42;
+    --border-strong: #e8eaed;
+    --focus: #8ab4f8;
+    --pill-checked-bg: #e8eaed;
+    --pill-checked-text: #121417;
+    --shadow: rgba(0, 0, 0, 0.5);
+    --notice-text: #f5dfae; --notice-bg: #33280f; --notice-border: #6b5520;
+    --error-text: #fecaca; --error-bg: #3b1515; --error-border: #7f2a2a;
+    --status-text: #c9ced6; --status-bg: #1c1f24; --status-border: #353a42;
+    --ok-text: #bbf7d0; --ok-bg: #0d2a18; --ok-border: #1f6b3a; --ok-icon: #15803d;
+    --warn-text: #fde68a; --warn-bg: #2e230a; --warn-border: #7a5a12; --warn-icon: #b45309;
+    --fail-text: #fecaca; --fail-bg: #3b1515; --fail-border: #7f2a2a; --fail-icon: #dc2626;
+    --qr-error: #ff8a80;
+  }
+}
+
+/* Printing the page itself (Ctrl+P) always uses the light theme. The real print layouts are
+ * PDFs built by js/print-layouts.js and are not affected by CSS at all. */
+@media print {
+  :root {
+    color-scheme: light;
+    --bg: #ffffff; --surface: #ffffff; --text: #1a1a1a; --text-muted: #4b5563; --text-sub: #4b5563;
+    --border-control: #767676; --border-soft: #dddddd; --button-bg: #f0f0f0;
+    --pill-checked-bg: #1a1a1a; --pill-checked-text: #ffffff;
+    --notice-text: #6b4f12; --notice-bg: #fcf3e3; --notice-border: #f0dfb5;
+    --error-text: #9b1c1c; --error-bg: #fdecec; --error-border: #f5c2c2;
+    --status-text: #4b5563; --status-bg: #f9fafb; --status-border: #e5e7eb;
+    --ok-text: #14532d; --ok-bg: #f0fdf4; --ok-border: #bbf7d0;
+    --warn-text: #78350f; --warn-bg: #fffbeb; --warn-border: #fde68a;
+    --fail-text: #7f1d1d; --fail-bg: #fef2f2; --fail-border: #fecaca;
+  }
+}
+
   * { box-sizing: border-box; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     max-width: 900px;
     margin: 0 auto;
     padding: 24px 20px 60px;
-    color: #1a1a1a;
-    background: #fff;
+    color: var(--text);
+    background: var(--bg);
   }
   .top-bar { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
   .lang-picker { position: relative; }
@@ -15,23 +90,24 @@
     gap: 8px;
     padding: 6px 10px;
     font-size: 13px;
-    border: 1px solid #767676;
+    border: 1px solid var(--border-control);
     border-radius: 8px;
-    background: #fff;
+    background: var(--surface);
+    color: var(--text);
     cursor: pointer;
   }
   .lang-btn img { width: 20px; height: 15px; border-radius: 2px; display: block; }
-  .lang-btn .lang-caret { font-size: 10px; color: #6b7280; margin-left: 2px; }
+  .lang-btn .lang-caret { font-size: 10px; color: var(--text-muted); margin-left: 2px; }
   .lang-popover {
     display: none;
     position: absolute;
     top: 42px;
     right: 0;
     z-index: 40;
-    background: #fff;
-    border: 1px solid #ddd;
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
     border-radius: 10px;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    box-shadow: 0 8px 24px var(--shadow);
     padding: 6px;
     min-width: 150px;
   }
@@ -45,11 +121,12 @@
     font-size: 13px;
     border: none;
     background: none;
+    color: var(--text);
     border-radius: 6px;
     cursor: pointer;
     text-align: left;
   }
-  .lang-option:hover { background: #f3f4f6; }
+  .lang-option:hover { background: var(--surface-hover); }
   .lang-option img { width: 20px; height: 15px; border-radius: 2px; }
   .layout { display: flex; gap: 32px; align-items: flex-start; }
   .form-col { flex: 1; min-width: 0; }
@@ -66,17 +143,17 @@
       position: sticky;
       top: 0;
       z-index: 30;
-      background: #fff;
+      background: var(--bg);
       padding-bottom: 12px;
       margin-bottom: 8px;
-      box-shadow: 0 6px 12px -8px rgba(0,0,0,0.15);
+      box-shadow: 0 6px 12px -8px var(--shadow);
     }
     #qrcode { max-width: 280px; margin: 0 auto; }
   }
   h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
-  p.sub { color: #666; font-size: 14px; margin-top: 0; margin-bottom: 24px; }
+  p.sub { color: var(--text-sub); font-size: 14px; margin-top: 0; margin-bottom: 24px; }
   details {
-    border-top: 1px solid #eee;
+    border-top: 1px solid var(--border-soft);
     margin-top: 20px;
     padding-top: 4px;
   }
@@ -95,7 +172,7 @@
   details summary::after {
     content: "▾";
     font-size: 12px;
-    color: #6b7280;
+    color: var(--text-muted);
     transition: transform 0.15s ease;
   }
   details[open] summary::after { transform: rotate(180deg); }
@@ -111,8 +188,19 @@
     width: 100%;
     padding: 10px 12px;
     font-size: 15px;
-    border: 1px solid #767676;
+    border: 1px solid var(--border-control);
     border-radius: 8px;
+    background: var(--surface);
+    color: var(--text);
+  }
+  input[type=date], input[type=time] {
+    padding: 9px 12px;
+    font-size: 15px;
+    border: 1px solid var(--border-control);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text);
+    font-family: inherit;
   }
   input[type=range] { width: 100%; }
   .color-picker { position: relative; display: inline-block; }
@@ -121,7 +209,7 @@
     height: 40px;
     border-radius: 50%;
     border: none;
-    box-shadow: 0 0 0 2px #767676;
+    box-shadow: 0 0 0 2px var(--border-control);
     cursor: pointer;
     padding: 0;
   }
@@ -131,10 +219,10 @@
     top: 48px;
     left: 0;
     z-index: 20;
-    background: #fff;
-    border: 1px solid #ddd;
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
     border-radius: 12px;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    box-shadow: 0 8px 24px var(--shadow);
     padding: 12px;
     width: 200px;
   }
@@ -150,11 +238,11 @@
     height: 24px;
     border-radius: 50%;
     border: none;
-    box-shadow: 0 0 0 1px #767676;
+    box-shadow: 0 0 0 1px var(--border-control);
     cursor: pointer;
     padding: 0;
   }
-  .swatch-grid button.selected { box-shadow: 0 0 0 2px #1a1a1a; }
+  .swatch-grid button.selected { box-shadow: 0 0 0 2px var(--text); }
   .hex-input-row { display: flex; align-items: center; gap: 8px; }
   .hex-input-row input[type=text] {
     width: 100%;
@@ -171,7 +259,8 @@
     top: 6px;
     bottom: 6px;
     border: none;
-    background: #f0f0f0;
+    background: var(--button-bg);
+    color: var(--text);
     border-radius: 6px;
     padding: 0 12px;
     font-size: 12px;
@@ -187,18 +276,18 @@
     border-radius: 8px;
     cursor: pointer;
   }
-  #download { background: #f0f0f0; color: #1a1a1a; }
+  #download { background: var(--button-bg); color: var(--text); }
   #download:disabled { opacity: 0.4; cursor: not-allowed; }
   .qr-box { margin-top: 28px; text-align: center; }
   #qrcode {
     display: block;
     padding: 16px;
-    background: #fff;
-    border: 1px solid #ddd;
+    background: var(--paper);
+    border: 1px solid var(--border-soft);
     border-radius: 12px;
   }
   #qrcode canvas { display: block; width: 100%; height: auto; }
-  .qr-error { color: #c0392b; font-weight: 700; }
+  .qr-error { color: var(--qr-error); font-weight: 700; }
   .scan-status {
     display: flex;
     align-items: flex-start;
@@ -209,9 +298,9 @@
     line-height: 1.4;
     text-align: left;
     border-radius: 8px;
-    border: 1px solid #e5e7eb;
-    background: #f9fafb;
-    color: #4b5563;
+    border: 1px solid var(--status-border);
+    background: var(--status-bg);
+    color: var(--status-text);
   }
   .scan-status[hidden] { display: none; }
   .scan-icon {
@@ -227,26 +316,26 @@
     color: #fff;
     background: #6b7280;
   }
-  .scan-status[data-state=ok] { color: #14532d; background: #f0fdf4; border-color: #bbf7d0; }
-  .scan-status[data-state=ok] .scan-icon { background: #15803d; }
-  .scan-status[data-state=warn] { color: #78350f; background: #fffbeb; border-color: #fde68a; }
-  .scan-status[data-state=warn] .scan-icon { background: #b45309; }
-  .scan-status[data-state=fail] { color: #7f1d1d; background: #fef2f2; border-color: #fecaca; }
-  .scan-status[data-state=fail] .scan-icon { background: #dc2626; }
-  .hint { font-size: 12px; color: #6b7280; margin-top: 4px; }
+  .scan-status[data-state=ok] { color: var(--ok-text); background: var(--ok-bg); border-color: var(--ok-border); }
+  .scan-status[data-state=ok] .scan-icon { background: var(--ok-icon); }
+  .scan-status[data-state=warn] { color: var(--warn-text); background: var(--warn-bg); border-color: var(--warn-border); }
+  .scan-status[data-state=warn] .scan-icon { background: var(--warn-icon); }
+  .scan-status[data-state=fail] { color: var(--fail-text); background: var(--fail-bg); border-color: var(--fail-border); }
+  .scan-status[data-state=fail] .scan-icon { background: var(--fail-icon); }
+  .hint { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
   .notice {
     font-size: 12px;
-    color: #6b4f12;
-    background: #fcf3e3;
-    border: 1px solid #f0dfb5;
+    color: var(--notice-text);
+    background: var(--notice-bg);
+    border: 1px solid var(--notice-border);
     border-radius: 8px;
     padding: 8px 10px;
     margin-top: 10px;
   }
   .notice-error {
-    color: #9b1c1c;
-    background: #fdecec;
-    border-color: #f5c2c2;
+    color: var(--error-text);
+    background: var(--error-bg);
+    border-color: var(--error-border);
   }
   .inline-check { margin-top: 12px; }
   .inline-check input { width: auto; display: inline-block; margin-right: 6px; }
@@ -255,8 +344,8 @@
     width: 40px;
     height: 40px;
     border-radius: 8px;
-    border: 1px solid #ddd;
-    background: #fff;
+    border: 1px solid var(--border-soft);
+    background: var(--paper);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -268,32 +357,34 @@
   .file-btn {
     padding: 8px 14px;
     font-size: 13px;
-    border: 1px solid #767676;
+    border: 1px solid var(--border-control);
     border-radius: 8px;
-    background: #fff;
+    background: var(--surface);
+    color: var(--text);
     cursor: pointer;
   }
   .small-btn {
     padding: 6px 10px;
     font-size: 12px;
-    border: 1px solid #767676;
+    border: 1px solid var(--border-control);
     border-radius: 6px;
-    background: #fff;
+    background: var(--surface);
+    color: var(--text);
     cursor: pointer;
   }
 
 /* Utility classes replacing former inline styles (inline styles are blocked by the CSP). */
 .is-hidden { display: none; }
 .btn-row-top { margin-top: 0; }
-.demo-label { font-size: 12px; color: #6b7280; margin-bottom: 8px; }
-.hex-prefix { font-size: 13px; color: #6b7280; }
+.demo-label { font-size: 12px; color: var(--text-muted); margin-bottom: 8px; }
+.hex-prefix { font-size: 13px; color: var(--text-muted); }
 .inline-check-spaced { margin-top: 16px; }
 .preset-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
 .preset-row .field-label { width: 100%; margin: 0; }
 #captionSuggestions { margin-top: 10px; }
 .design-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .design-row .file-btn { margin: 0; font-weight: 600; font-family: inherit; }
-.small-btn:hover, .small-btn:focus-visible { border-color: #1f2937; }
+.small-btn:hover, .small-btn:focus-visible { border-color: var(--border-strong); }
 .logo-row .file-btn { margin: 0; }
 .lang-btn img, .lang-option img { object-fit: cover; }
 
@@ -310,11 +401,11 @@
 }
 
 /* Firefox renders placeholders at reduced opacity (~3.4:1); make them explicit. */
-::placeholder { color: #6b7280; opacity: 1; }
+::placeholder { color: var(--text-muted); opacity: 1; }
 
 /* One clearly visible focus indicator for every interactive element (2.4.7). */
 :focus-visible {
-  outline: 3px solid #1d4ed8;
+  outline: 3px solid var(--focus);
   outline-offset: 2px;
 }
 .color-swatch-btn:focus-visible,
@@ -334,7 +425,7 @@
 }
 #logoFile:focus-visible + .file-btn,
 #designFile:focus-visible + .file-btn {
-  outline: 3px solid #1d4ed8;
+  outline: 3px solid var(--focus);
   outline-offset: 2px;
 }
 
@@ -351,10 +442,10 @@
   display: block;
   width: 100%;
   height: auto;
-  border: 1px solid #d1d5db;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  border: 1px solid var(--border-soft);
+  box-shadow: 0 4px 14px var(--shadow);
 }
-#printDownload { background: #f0f0f0; color: #1a1a1a; }
+#printDownload { background: var(--button-bg); color: var(--text); }
 #printDownload:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* ---- QR type picker (native radios, styled as a segmented control) ----------------------- */
@@ -389,18 +480,19 @@
   display: inline-block;
   padding: 7px 12px;
   font-size: 13px;
-  border: 1px solid #767676;
+  border: 1px solid var(--border-control);
   border-radius: 999px;
-  background: #fff;
+  background: var(--surface);
+  color: var(--text);
   cursor: pointer;
 }
 .type-option input:checked + span {
-  background: #1a1a1a;
-  border-color: #1a1a1a;
-  color: #fff;
+  background: var(--pill-checked-bg);
+  border-color: var(--pill-checked-bg);
+  color: var(--pill-checked-text);
 }
 .type-option input:focus-visible + span {
-  outline: 3px solid #1d4ed8;
+  outline: 3px solid var(--focus);
   outline-offset: 2px;
 }
 .type-panel[hidden] { display: none; }

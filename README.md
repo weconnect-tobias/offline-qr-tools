@@ -18,8 +18,8 @@ Create styled, print-ready QR codes for **Wi-Fi**, **web addresses**, **text**, 
   all day, description — opens "add to calendar" on the phone)
 - **Swish**: mobile number, company Swish number or 90 account, with optional amount and message
   (locked or editable by the payer) — opens the Swish app straight from the phone camera, with
-  Swish's recommended look in black and white or colour (add the Swish symbol yourself from
-  swish.nu; it is Swish's trademark and not included)
+  Swish's recommended look (black code with the colour symbol, black and white, or a colour
+  gradient) — the Swish symbol is added automatically
 - Direct links to a type, e.g. `index.html#url` or `index.html#vcard`
 - Opens in your browser's language (Swedish or English, otherwise English), remembers a manual
   choice, and `?lang=sv` / `?lang=en` in a link forces a language
@@ -41,6 +41,8 @@ Create styled, print-ready QR codes for **Wi-Fi**, **web addresses**, **text**, 
 - Export as PNG, SVG or PDF
 - Print layouts: A4/Letter sign, folding table tent, business-card sheet (85 × 55 mm) with crop marks,
   including a check that the printed QR dots are large enough to scan
+- Light and dark mode that follows your operating system (e.g. Windows' light/dark setting);
+  downloads and printouts are always on white paper
 - Accessible (WCAG 2.1 AA) and works offline
 
 ## Privacy and security
@@ -129,3 +131,8 @@ used as instructions by AI coding assistants.
 
 Bundled third-party libraries in `vendor/` keep their own licenses, included next to each file:
 jQuery (MIT), qrcode-generator (MIT), jsQR (Apache-2.0) and jsPDF (MIT).
+
+The Swish symbol in `assets/swish/` (and embedded in `js/assets/swish-symbols.js`) is a
+trademark of Getswish AB and is **not** covered by the MIT license. It is included only for
+Swish payment codes made according to Swish's guidelines — see
+[`assets/swish/NOTICE.md`](assets/swish/NOTICE.md).
