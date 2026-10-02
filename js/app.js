@@ -97,6 +97,39 @@ $("#gradientAngle").on("input change", function() {
 });
 
 // Presets only set shape/gradient controls; colours stay the user's choice.
+// Swish's guidelines for own QR codes: black and white, rounded eyes, the Swish symbol
+// without wordmark in the middle at 25 % of the code width on its white round background,
+// and "Swish" written in text next to it. The colour variant is the 45° purple-to-red
+// gradient from Swish's QR design specification (colours taken from the Swish symbol).
+// The symbol itself is never bundled (Swish trademark); the user adds it as the logo.
+const SWISH_LOOKS = {
+  bw: { qrShape: "square", eyeStyle: "rounded", qrColor: "#000000", qrBgColor: "#ffffff", gradient: "none" },
+  color: { qrShape: "square", eyeStyle: "rounded", qrColor: "#6835ed", qrBgColor: "#ffffff", gradient: "angle", gradientAngle: "45", gradientColor2: "#f13b30" }
+};
+
+function applySwishLook(name) {
+  const look = SWISH_LOOKS[name];
+  if (!look) return;
+  Object.keys(look).forEach(function(id) { $("#" + id).val(look[id]).trigger("change"); });
+  $("#customEyeColor").prop("checked", false).trigger("change");
+  $("#logoSize").val("25").trigger("change");
+  $("#logoBackground").val("clear").trigger("change");
+  // The symbol may only be used without the wordmark when "Swish" is written in text.
+  if ($("#textStyle").val() === "none") $("#textStyle").val("plain").trigger("change");
+  if (!String($("#captionText").val()).trim()) $("#captionText").val(t("ctaPayWithSwish"));
+  updateSwishLogoNote();
+  updatePreview();
+}
+
+function updateSwishLogoNote() {
+  $("#swLogoNote").toggle(currentType === "swish" && Boolean($("#swLogoNote").data("lookApplied")) && !logoImage);
+}
+$("[data-swish-look]").on("click", function() {
+  $("#swLogoNote").data("lookApplied", true);
+  applySwishLook($(this).attr("data-swish-look"));
+});
+$(document).on("preview:rendered qrtype:changed", updateSwishLogoNote);
+
 const QR_STYLE_PRESETS = {
   classic: { qrShape: "square", eyeStyle: "square", gradient: "none" },
   modern: { qrShape: "fluid", eyeStyle: "rounded", gradient: "none" },

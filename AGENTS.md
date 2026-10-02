@@ -104,7 +104,12 @@ locked empty message = the payer cannot write one); an empty amount is left out 
 `cur`, is always open and can't be locked; amounts are written like JS numbers (`49.5`). The
 phone camera opens the link in the Swish app (the older `C…;…` text only works in the app's own
 scanner). Payee: mobile 07…, company 123… or 90 account, never editable; amount 1–999 999.99;
-message ≤ 50 characters, URL-encoded. Do not add the Swish logo (trademark rules). Payloads are capped at 1000 UTF-8 bytes so codes stay scannable with a
+message ≤ 50 characters, URL-encoded. `SWISH_LOOKS` in `js/app.js` applies Swish's guidelines
+for own codes (black and white or the 45° purple→red colour variant, rounded eyes, logo 25 %
+with the empty area behind it, caption "Pay with Swish" because the symbol may only appear
+without its wordmark next to the word Swish). **Never bundle the Swish symbol** (Swish
+trademark): the user downloads it from swish.nu and adds it as the logo (PNG; SVG uploads stay
+blocked). Payloads are capped at 1000 UTF-8 bytes so codes stay scannable with a
 logo. The UI reads the active panel via `TYPE_READERS` in `js/app.js`; the selected type is kept
 in `currentType` and mirrored in the address (`index.html#vcard`).
 

@@ -17,7 +17,9 @@ Create styled, print-ready QR codes for **Wi-Fi**, **web addresses**, **text**, 
   (vCard 3.0), **location** (coordinates) and **calendar event** (title, place, start/end or
   all day, description — opens "add to calendar" on the phone)
 - **Swish**: mobile number, company Swish number or 90 account, with optional amount and message
-  (locked or editable by the payer) — opens the Swish app straight from the phone camera
+  (locked or editable by the payer) — opens the Swish app straight from the phone camera, with
+  Swish's recommended look in black and white or colour (add the Swish symbol yourself from
+  swish.nu; it is Swish's trademark and not included)
 - Direct links to a type, e.g. `index.html#url` or `index.html#vcard`
 - Opens in your browser's language (Swedish or English, otherwise English), remembers a manual
   choice, and `?lang=sv` / `?lang=en` in a link forces a language

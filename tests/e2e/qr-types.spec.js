@@ -177,3 +177,47 @@ test("swish: lock boxes follow their fields until clicked; an empty message can 
   await waitForScan(page);
   expect(await page.evaluate(() => currentPayload)).toBe("https://app.swish.nu/1/p/sw/?sw=0701234567&msg=&src=qr");
 });
+
+test("swish: the recommended looks apply Swish's guidelines and stay scannable", async ({ guarded: page }) => {
+  await openApp(page);
+  await openAllSections(page);
+  await page.click("input[name=qrType][value=swish] + span");
+  await page.fill("#swNumber", "1231234567");
+  await expect(page.locator("#swLogoNote")).toBeHidden();
+
+  await page.click("[data-swish-look=bw]");
+  await expect(page.locator("#eyeStyle")).toHaveValue("rounded");
+  await expect(page.locator("#qrColor")).toHaveValue("#000000");
+  await expect(page.locator("#gradient")).toHaveValue("none");
+  await expect(page.locator("#logoSize")).toHaveValue("25");
+  await expect(page.locator("#logoBackground")).toHaveValue("clear");
+  await expect(page.locator("#textStyle")).toHaveValue("plain");
+  await expect(page.locator("#captionText")).toHaveValue("Betala med Swish");
+  // No symbol yet: tell the user where to get it (it is not bundled).
+  await expect(page.locator("#swLogoNote")).toBeVisible();
+  await waitForScan(page);
+  await expect(page.locator("#scanStatus")).toHaveAttribute("data-state", "ok");
+
+  await page.click("[data-swish-look=color]");
+  await expect(page.locator("#gradient")).toHaveValue("angle");
+  await expect(page.locator("#gradientAngle")).toHaveValue("45");
+  await expect(page.locator("#qrColor")).toHaveValue("#6835ed");
+  await expect(page.locator("#gradientColor2")).toHaveValue("#f13b30");
+  await expect(page.locator("#contrastWarning")).toBeHidden();
+  await waitForScan(page);
+  await expect(page.locator("#scanStatus")).toHaveAttribute("data-state", "ok");
+
+  // A stand-in symbol (round, white background) at 25 % with the empty area behind it.
+  const dataUrl = await page.evaluate(() => {
+    const c = document.createElement("canvas"); c.width = c.height = 400;
+    const x = c.getContext("2d"); x.fillStyle = "#fff"; x.beginPath(); x.arc(200, 200, 200, 0, 7); x.fill();
+    x.fillStyle = "#6835ed"; x.beginPath(); x.arc(200, 200, 130, 0, 7); x.fill();
+    return c.toDataURL("image/png");
+  });
+  const file = test.info().outputPath("symbol.png");
+  require("node:fs").writeFileSync(file, Buffer.from(dataUrl.split(",")[1], "base64"));
+  await page.setInputFiles("#logoFile", file);
+  await waitForScan(page);
+  await expect(page.locator("#swLogoNote")).toBeHidden();
+  await expect(page.locator("#scanStatus")).toHaveAttribute("data-state", "ok");
+});
