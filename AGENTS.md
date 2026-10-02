@@ -59,7 +59,7 @@ js/core/payload.js          PURE: buildWifiPayload(), validatePassword()
 js/core/qr-types.js         PURE: QR_TYPES registry, buildQrPayload(type, input) for every content type
 js/render/scene.js          Scene primitives, text fitting (needs a canvas)
 js/render/shapes.js         PURE: MODULE_SHAPES, EYE_STYLES, GRADIENT_TYPES, qrPaint()
-js/render/templates.js      FRAME_TEMPLATES (none, border, rounded, dashed, card, polaroid, ribbon, bubble)
+js/render/templates.js      FRAME_TEMPLATES (none, border, rounded, dashed, double, brackets, card, polaroid, stamp, ribbon, bubble)
 js/render/renderer.js       buildScene(), sceneToCanvas(), sceneToSVG()
 js/ui/state.js              Shared mutable UI state (currentQR, currentPayload, …)
 js/ui/i18n.js               t(), applyI18n(), language picker
@@ -111,24 +111,33 @@ written once. The QR block (modules + 4-module quiet zone) is drawn by the core,
 template, and text overlapping it is dropped — templates cannot break scannability.
 
 ### QR shapes and colours (`js/render/shapes.js`)
-- `MODULE_SHAPES`: square, rounded, dots, fluid, classy, diamond, vlines, hlines. Each returns
+- `MODULE_SHAPES`: square, rounded, dots, fluid, classy, diamond, smallSquares, hexagons, plus,
+  hearts, vlines, hlines. Each returns
   SVG path data for all data modules (`pathD(isDark, n, x0, y0, cell)`); neighbour-aware shapes
   query `isDark(row ± 1, col ± 1)`, which is `false` outside the code and inside the eyes.
 - `EYE_STYLES`: the three finder patterns as **tested pairs** of an `EYE_FRAME_SHAPES` ring and an
-  `EYE_BALL_SHAPES` centre (square, rounded, roundedDot, circle, leaf), drawn with `fillRule:
-  "evenodd"`. They are pairs on purpose: a square ring around a round centre (and similar
-  mixes) broke decoding for 30–90 % of the tested codes when combined with dots or lines.
+  `EYE_BALL_SHAPES` centre (square, rounded, roundedDot, circle, circleRounded, leaf, leafDot,
+  pointed), drawn with `fillRule: "evenodd"` (so shapes inside one eye must not overlap).
+  Frame and centre functions get `(x, y, cell, corner)`; `corner` (0 top-left, 1 top-right,
+  2 bottom-left) lets `pointed` aim its sharp corner at the middle of the code. They are pairs
+  on purpose: a square ring around a round centre (and similar mixes) broke decoding for
+  30–90 % of the tested codes when combined with dots or lines. A ring of separate dots was
+  tried and dropped (up to 65 % failures).
 - `qrPaint()` returns a flat colour or a gradient object (`linear`/`radial`, user-space
   coordinates spanning the code) that both renderers understand. Optional `eyeColor` paints
   the eyes separately. The contrast warning checks every colour in use against the background.
-- Measured, not guessed: the dot radius (0.5), diamond radius (0.68), round centre (1.65 modules)
-  and line inset (0.05) were tuned with the scan self-test over many sizes and payloads. Do not
+- Measured, not guessed: the dot radius (0.5), diamond radius (0.68), round centre (1.65 modules),
+  line inset (0.05), small-square inset (0.07; 0.1 failed with gradients), hexagon radius
+  (0.62), plus-sign arm (0.55) and heart scale (1.3; hearts overlap their neighbours, smaller
+  ones only decoded with warnings) were tuned with the scan self-test over many sizes and payloads. Do not
   shrink them for looks without re-running the tests.
-- Deliberately not offered: whole-code silhouettes (hearts, stars, animals) and heavily
-  decorated eyes — they depend on error correction to scan at all.
+- Deliberately not offered: whole-code silhouettes (the entire code shaped like a heart, star or
+  animal) and heavily decorated eyes — they depend on error correction to scan at all. Small
+  shapes per module (like `hearts`) are fine when they pass the scan tests.
 
 ### Frame templates (`FRAME_TEMPLATES` in `js/render/templates.js`)
-`none`, `border`, `rounded`, `dashed`, `card`, `polaroid`, `ribbon`, `bubble`. Each has
+`none`, `border`, `rounded`, `dashed`, `double`, `brackets` (viewfinder corners), `card`,
+`polaroid`, `stamp` (perforated edges), `ribbon`, `bubble`. Each has
 `build(M, o, tx)` → `{ h, block, back, front, pageColor }`. `ownsText: true` means the template
 decides where text goes.
 

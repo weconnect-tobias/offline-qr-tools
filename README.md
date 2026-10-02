@@ -18,10 +18,11 @@ Create styled, print-ready QR codes for **Wi-Fi**, **web addresses**, **text**, 
 - Direct links to a type, e.g. `index.html#url` or `index.html#vcard`
 - Opens in your browser's language (Swedish or English, otherwise English), remembers a manual
   choice, and `?lang=sv` / `?lang=en` in a link forces a language
-- Styling: 8 dot shapes (squares, rounded, circles, flowing, classy, diamonds, vertical and
-  horizontal lines), 5 corner styles, color gradients (linear or radial), a separate corner
-  color, quick styles (Classic, Modern, Elegant, Playful), logo, and frames: border, card,
-  Polaroid, ribbon and speech bubble. Every shape combination is decode-tested.
+- Styling: 12 dot shapes (squares, small squares, rounded, circles, flowing, classy, diamonds,
+  hexagons, plus signs, hearts, vertical and horizontal lines), 8 corner styles, color gradients
+  (linear or radial), a separate corner color, quick styles (Classic, Modern, Elegant, Playful,
+  Minimal, Retro), logo, and frames: border, double, dashed, viewfinder corners, card, Polaroid,
+  postage stamp, ribbon and speech bubble. Every shape combination is decode-tested.
 - **Scan self-test**: every design is decoded locally and checked byte-for-byte before you use it
 - Export as PNG, SVG or PDF
 - Print layouts: A4/Letter sign, folding table tent, business-card sheet (85 × 55 mm) with crop marks,

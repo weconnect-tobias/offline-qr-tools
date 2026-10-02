@@ -93,7 +93,9 @@ const QR_STYLE_PRESETS = {
   classic: { qrShape: "square", eyeStyle: "square", gradient: "none" },
   modern: { qrShape: "fluid", eyeStyle: "rounded", gradient: "none" },
   elegant: { qrShape: "classy", eyeStyle: "leaf", gradient: "diagonal" },
-  playful: { qrShape: "dots", eyeStyle: "circle", gradient: "radial" }
+  playful: { qrShape: "dots", eyeStyle: "circle", gradient: "radial" },
+  minimal: { qrShape: "smallSquares", eyeStyle: "roundedDot", gradient: "none" },
+  retro: { qrShape: "hlines", eyeStyle: "pointed", gradient: "vertical" }
 };
 
 $("[data-preset]").on("click", function() {

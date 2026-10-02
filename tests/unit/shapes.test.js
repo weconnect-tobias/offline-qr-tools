@@ -18,9 +18,9 @@ const qrPaint = get("qrPaint");
 const langFiles = fs.readdirSync(path.join(ROOT, "lang")).filter((f) => f.endsWith(".js"));
 const I18N = loadScripts(langFiles.map((f) => "lang/" + f))("I18N");
 
-// Only absolute/relative move, line, arc and close commands with numbers: nothing that
+// Only move, line, arc, cubic-curve and close commands with numbers: nothing that
 // could break out of an SVG attribute.
-const PATH_RE = /^[MmLlHhVvAaZz0-9 .\-]*$/;
+const PATH_RE = /^[MmLlHhVvAaCcZz0-9 .\-]*$/;
 
 // 21×21 test matrix with a checkerboard of data modules.
 const N = 21;

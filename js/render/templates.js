@@ -12,7 +12,7 @@
  *
  * To add a style: add an entry here and an <option> in #frameStyle (+ i18n key).
  *
- * Depends on: render/scene.js, core/util.js; t() from ui/i18n.js at render time
+ * Depends on: render/scene.js, render/shapes.js (circleD), core/util.js; t() from ui/i18n.js at render time
  * ========================================================================= */
 
 // Classic layouts: optional frame line + text as plain lines or colored plates.
@@ -79,6 +79,12 @@ function classicTemplate(kind) {
           lineWidth: lw,
           dash: kind === "dashed" ? [lw * 4, lw * 3] : null
         });
+        if (kind === "double") {
+          // Thin inner line; first in the back layer so text plates cover it instead of crossing it.
+          const lw2 = lw * 0.45;
+          const off = lw * 1.9;
+          back.unshift({ type: "path", d: roundRectD(off, off, S - off * 2, y - off * 2, Math.max(0, R - off)), stroke: o.frameColor, lineWidth: lw2 });
+        }
       }
       return { h: y, block: block, back: back, front: front, pageColor: o.qrBgColor };
     }
@@ -90,6 +96,71 @@ const FRAME_TEMPLATES = {
   border: classicTemplate("border"),
   rounded: classicTemplate("rounded"),
   dashed: classicTemplate("dashed"),
+  double: classicTemplate("double"),
+
+  // Camera viewfinder: corner brackets around the code, title above and caption below.
+  brackets: {
+    ownsText: true,
+    build: function(M, o, tx) {
+      const S = M.S;
+      const lw = Math.max(2, S * 0.018);
+      const inset = S * 0.06;
+      const B = S - inset * 2;
+      const arm = B * 0.2;
+      const titleH = o.title ? M.fontTitle * 2.2 : S * 0.02;
+      const captionH = o.caption ? M.fontCaption * 2.2 : S * 0.02;
+      const top = titleH + inset;
+      const front = [];
+      if (o.title) {
+        front.push.apply(front, tx({ text: o.title, cx: S / 2, cy: titleH / 2 + S * 0.01, basePx: M.fontTitle, maxWidth: S - inset * 2, bold: true, bg: o.qrBgColor, icon: o.wifiIcon && !o.caption }));
+      }
+      if (o.caption) {
+        front.push.apply(front, tx({ text: o.caption, cx: S / 2, cy: top + B + inset + captionH / 2 - S * 0.01, basePx: M.fontCaption, maxWidth: S - inset * 2, bold: false, bg: o.qrBgColor, icon: o.wifiIcon }));
+      }
+      // Brackets sit just outside the QR block, so they can never cover a module.
+      const e = lw / 2 + S * 0.006;
+      const x0 = inset - e, y0 = top - e, x1 = inset + B + e, y1 = top + B + e;
+      const d = "M" + f(x0) + " " + f(y0 + arm) + "V" + f(y0) + "H" + f(x0 + arm) +
+        "M" + f(x1 - arm) + " " + f(y0) + "H" + f(x1) + "V" + f(y0 + arm) +
+        "M" + f(x1) + " " + f(y1 - arm) + "V" + f(y1) + "H" + f(x1 - arm) +
+        "M" + f(x0 + arm) + " " + f(y1) + "H" + f(x0) + "V" + f(y1 - arm);
+      const back = [{ type: "path", d: d, stroke: o.frameColor, lineWidth: lw, cap: "round" }];
+      return { h: top + B + inset + captionH, block: { x: inset, y: top, size: B }, back: back, front: front, pageColor: o.qrBgColor };
+    }
+  },
+
+  // Postage stamp: frame-coloured paper with perforated edges, text in the top and bottom bands.
+  stamp: {
+    ownsText: true,
+    build: function(M, o, tx) {
+      const S = M.S;
+      const hole = S * 0.018;           // perforation radius; the paper starts at its centre line
+      const edge = S * 0.07;
+      const headH = o.title ? M.bandH(M.fontTitle) : edge;
+      const footH = o.caption ? M.bandH(M.fontCaption) : edge;
+      const B = S - hole * 2 - edge * 2;
+      const h = hole * 2 + headH + B + footH;
+      const pw = S - hole * 2, ph = h - hole * 2;
+      const back = [{ type: "rect", x: hole, y: hole, w: pw, h: ph, fill: o.frameColor }];
+      // Holes in the page colour, evenly spread so every edge starts and ends with one.
+      const holes = function(len, along) {
+        const count = Math.max(2, Math.round(len / (hole * 3.2)));
+        for (let i = 0; i <= count; i++) along(hole + len * i / count);
+      };
+      let d = "";
+      holes(pw, function(x) { d += circleD(x, hole, hole) + circleD(x, h - hole, hole); });
+      holes(ph, function(y) { d += circleD(hole, y, hole) + circleD(S - hole, y, hole); });
+      back.push({ type: "path", d: d, fill: o.qrBgColor });
+      const front = [];
+      if (o.title) {
+        front.push.apply(front, tx({ text: o.title, cx: S / 2, cy: hole + headH / 2, basePx: M.fontTitle, maxWidth: B, bold: true, bg: o.frameColor, icon: o.wifiIcon && !o.caption }));
+      }
+      if (o.caption) {
+        front.push.apply(front, tx({ text: o.caption, cx: S / 2, cy: hole + headH + B + footH / 2, basePx: M.fontCaption, maxWidth: B, bold: true, bg: o.frameColor, icon: o.wifiIcon }));
+      }
+      return { h: h, block: { x: hole + edge, y: hole + headH, size: B }, back: back, front: front, pageColor: o.qrBgColor };
+    }
+  },
 
   // Thick colored card: title in the header band, caption in the footer band.
   card: {
