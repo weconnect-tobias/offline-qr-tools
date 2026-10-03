@@ -10,7 +10,8 @@ Create styled, print-ready QR codes for **Wi-Fi**, **web addresses**, **text**, 
 
 ## Features
 
-- **Wi-Fi**: WPA/WPA2/WPA3, WEP, open networks, WPA2-Enterprise (EAP), hidden networks
+- **Wi-Fi**: WPA/WPA2/WPA3, WEP, open networks, WPA2-Enterprise (EAP), hidden networks, and a built-in
+  generator for strong passwords (created locally with the browser's secure random source)
 - **Web address**: only `http`/`https`; blocks `javascript:` links and `user@host` phishing tricks,
   warns about unencrypted `http` and look-alike (punycode) domains
 - **Text**, **e-mail** (recipient, subject, message), **phone**, **SMS**, **contact card**
@@ -118,6 +119,15 @@ See [`AGENTS.md`](AGENTS.md#tests).
 ```
 
 See [`vendor/README.md`](vendor/README.md).
+
+## Testing on real phones
+
+Before a release, go through [`docs/device-testing.md`](docs/device-testing.md) with an iPhone
+and an Android phone; the automated tests decode with a software decoder, not phone cameras.
+
+## Reporting security issues
+
+See [`SECURITY.md`](SECURITY.md) — please report privately, not as a public issue.
 
 ## Contributing
 

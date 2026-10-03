@@ -58,6 +58,7 @@ lang/sv.js, lang/en.js      I18N.<code> = { key: "text", … , langName, flagCod
 js/core/util.js             PURE: escaping, sanitizing, colour maths, isWinAnsi
 js/core/payload.js          PURE: buildWifiPayload(), validatePassword()
 js/core/qr-types.js         PURE: QR_TYPES registry, buildQrPayload(type, input) for every content type
+js/core/password.js         PURE: generateWifiPassword(randomBytes) — the UI passes crypto.getRandomValues
 js/core/design.js           PURE: design files — DESIGN_FIELDS, buildDesign(), parseDesignFile()
 js/render/scene.js          Scene primitives, text fitting (needs a canvas)
 js/render/shapes.js         PURE: MODULE_SHAPES, EYE_STYLES, GRADIENT_TYPES, qrPaint()
@@ -79,6 +80,8 @@ tools/Check-Dependencies.ps1  Checks/updates vendored libraries (developer tool,
 tests/unit/                 node:test — pure modules, i18n, static security rules, vendor checksums
 tests/e2e/                  Playwright — the app in a real browser, with network/CSP guards
 tests/support/              Test helpers (VM script loader, static server)
+docs/device-testing.md      Manual checklist for real phones and printouts (before every release)
+SECURITY.md, CHANGELOG.md   Vulnerability reporting; changes (add yours under "Unreleased")
 ```
 
 Script load order (classic scripts sharing globals — ES modules are blocked on `file://`,
@@ -249,6 +252,9 @@ Presets live in `QR_STYLE_PRESETS` in `js/app.js`.
 **Add a style option:** if it should be part of saved designs, add its control id to
 `DESIGN_FIELDS` in `js/core/design.js` with the right kind.
 
+**Generate passwords or other secrets:** only with `crypto.getRandomValues` and rejection
+sampling (see `js/core/password.js`); never `Math.random` (a unit test checks).
+
 **Add a ready-made caption text:** add an entry to `CAPTION_SUGGESTIONS` in `js/app.js` (its
 key and the content types it fits, `"*"` for all) and the key to every language file.
 
@@ -305,9 +311,10 @@ Rules for changes:
 1. `npm test` must pass. Add or update tests for every behaviour change; a new rule in this file
    should get a static test in `tests/unit/security-static.test.js` when it can be checked.
 2. Never weaken a guard or a security test to make a change pass — fix the change.
-3. Still scan real printouts/exports with an iPhone and an Android phone before a release;
-   the tests decode with jsQR, not with phone cameras.
+3. Still scan real printouts/exports with an iPhone and an Android phone before a release,
+   using `docs/device-testing.md`; the tests decode with jsQR, not with phone cameras.
 4. Dependencies touched: run `tools/Check-Dependencies.ps1` (exit code 0 or 1).
+5. Add user-visible changes to `CHANGELOG.md` under "Unreleased".
 
 ## Conventions
 

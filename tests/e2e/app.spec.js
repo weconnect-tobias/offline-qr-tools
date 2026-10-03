@@ -225,3 +225,29 @@ test("switching language translates every labelled element", async ({ guarded: p
   expect(untranslated).toEqual([]);
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
 });
+
+test("strong password generator: fills the field, shows it, reminds about the router", async ({ guarded: page }) => {
+  await openApp(page);
+  await page.fill("#ssid", SSID);
+  await page.click("#generatePwd");
+  const pwd = await page.inputValue("#pswd");
+  expect(pwd).toMatch(/^[a-km-np-zA-HJ-NP-Z2-9]{5}(-[a-km-np-zA-HJ-NP-Z2-9]{5}){3}$/);
+  await expect(page.locator("#pswd")).toHaveAttribute("type", "text");
+  await expect(page.locator("#togglePwd")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("#genPwdNote")).toBeVisible();
+  await waitForScan(page);
+  await expect(page.locator("#scanStatus")).toHaveAttribute("data-state", "ok");
+  expect(await page.evaluate(() => currentPayload)).toContain(";P:" + pwd + ";");
+
+  // A second click gives a different password.
+  await page.click("#generatePwd");
+  expect(await page.inputValue("#pswd")).not.toBe(pwd);
+
+  // Typing by hand hides the reminder; WEP and enterprise have no generator.
+  await page.fill("#pswd", "my own passphrase");
+  await expect(page.locator("#genPwdNote")).toBeHidden();
+  await page.selectOption("#security", "WEP");
+  await expect(page.locator("#generatePwd")).toBeHidden();
+  await page.selectOption("#security", "WPA2-EAP");
+  await expect(page.locator("#generatePwd")).toBeHidden();
+});

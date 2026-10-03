@@ -18,6 +18,8 @@ I18N.sv = {
   pswdPlaceholder: "Nätverkslösenord",
   show: "Visa",
   hide: "Dölj",
+  genPasswordBtn: "Skapa starkt lösenord",
+  genPasswordNote: "Ett nytt lösenord har skapats. Ställ in exakt samma lösenord i din router eller accesspunkt – annars fungerar inte QR-koden.",
   eapMethodLabel: "EAP-metod",
   phase2Label: "Fas 2-metod",
   none: "Ingen",

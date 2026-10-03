@@ -18,6 +18,8 @@ I18N.en = {
   pswdPlaceholder: "Network password",
   show: "Show",
   hide: "Hide",
+  genPasswordBtn: "Create a strong password",
+  genPasswordNote: "A new password was created. Set exactly the same password on your router or access point – otherwise the QR code will not work.",
   eapMethodLabel: "EAP method",
   phase2Label: "Phase 2 method",
   none: "None",

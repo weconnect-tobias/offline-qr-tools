@@ -33,6 +33,9 @@ function renderPreview() {
 function updatePwdVisibility() {
   const sec = $("#security").val();
   $("#pwd-field").toggle(sec !== "nopass");
+  // Generated passwords are WPA passphrases; WEP keys and enterprise passwords are given.
+  $("#generatePwd").toggle(sec === "WPA");
+  if (sec !== "WPA") $("#genPwdNote").hide();
   $("#eap-fields").toggle(sec === "WPA2-EAP");
   $("#hidden").closest("label").toggle(sec !== "WPA2-EAP");
 }
@@ -44,6 +47,18 @@ $("#togglePwd").on("click", function() {
   const isPwd = field.attr("type") === "password";
   field.attr("type", isPwd ? "text" : "password");
   $(this).text(isPwd ? t("hide") : t("show")).attr("aria-pressed", String(isPwd));
+});
+
+// A new password is shown (so it can be set on the router) and the user is reminded that the
+// router must use the same one. crypto.getRandomValues is the only random source used.
+$("#generatePwd").on("click", function() {
+  const password = generateWifiPassword(function(n) { return window.crypto.getRandomValues(new Uint8Array(n)); });
+  $("#pswd").val(password).attr("type", "text").trigger("input");
+  $("#togglePwd").text(t("hide")).attr("aria-pressed", "true");
+  $("#genPwdNote").show();
+});
+$("#pswd").on("input", function(e) {
+  if (e.originalEvent) $("#genPwdNote").hide(); // typed by the user, not generated
 });
 
 $("#anonIdentity").on("change", function() {

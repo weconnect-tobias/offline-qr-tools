@@ -88,6 +88,8 @@
     <input type="password" id="pswd" autocomplete="off" autocapitalize="off" spellcheck="false" data-i18n-placeholder="pswdPlaceholder" placeholder="Nätverkslösenord">
     <button type="button" id="togglePwd" aria-controls="pswd" aria-pressed="false" data-i18n="show">Visa</button>
   </div>
+  <button type="button" class="small-btn gen-pwd-btn" id="generatePwd" aria-controls="pswd" data-i18n="genPasswordBtn">Skapa starkt lösenord</button>
+  <div class="is-hidden notice" id="genPwdNote" role="status" data-i18n="genPasswordNote">Ett nytt lösenord har skapats. Ställ in exakt samma lösenord i din router eller accesspunkt – annars fungerar inte QR-koden.</div>
 </div>
 
 <div class="is-hidden" id="eap-fields">
@@ -683,6 +685,7 @@
 <script src="js/core/util.js"></script>
 <script src="js/core/payload.js"></script>
 <script src="js/core/qr-types.js"></script>
+<script src="js/core/password.js"></script>
 <script src="js/core/design.js"></script>
 <script src="js/render/scene.js"></script>
 <script src="js/render/shapes.js"></script>

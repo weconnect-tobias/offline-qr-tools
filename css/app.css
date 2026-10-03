@@ -382,6 +382,7 @@
 .preset-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
 .preset-row .field-label { width: 100%; margin: 0; }
 #captionSuggestions { margin-top: 10px; }
+.gen-pwd-btn { margin-top: 8px; }
 .design-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .design-row .file-btn { margin: 0; font-weight: 600; font-family: inherit; }
 .small-btn:hover, .small-btn:focus-visible { border-color: var(--border-strong); }
