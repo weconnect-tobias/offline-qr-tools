@@ -77,6 +77,7 @@ assets/flags/<code>.svg     Local flag icons for the language picker (un.svg = f
 assets/swish/               Swish symbol SVGs + NOTICE.md (third-party trademark, not MIT)
 vendor/                     Vendored libraries + licenses + manifest.json + README.md
 tools/Check-Dependencies.ps1  Checks/updates vendored libraries (developer tool, not the app)
+tools/build-site.sh         Copies the runtime files to dist/site (Pages) and, with --zip, the release zip
 tests/unit/                 node:test — pure modules, i18n, static security rules, vendor checksums
 tests/e2e/                  Playwright — the app in a real browser, with network/CSP guards
 tests/support/              Test helpers (VM script loader, static server)
@@ -304,8 +305,11 @@ npm run test:unit                    # fast, no browser
   levels, quiet zones, transparent exports, saving/opening design files (and hostile ones), password never in SVG/PDF output, logo upload hardening,
   language switch, all print layouts (every QR on the page decoded), `file://` usage and
   WCAG 2.1 A/AA via axe-core in light and dark mode (and identical exports in both).
-- CI (`.github/workflows/ci.yml`) runs the tests plus `tools/Check-Dependencies.ps1` on every
-  push/PR and weekly.
+- CI (`.github/workflows/ci.yml`) runs the tests, the site build and `tools/Check-Dependencies.ps1`
+  on every push/PR and weekly. `pages.yml` publishes `main` to GitHub Pages after the tests;
+  `release.yml` turns a `v*.*.*` tag into a GitHub release (tag must equal `package.json` version
+  and have a `CHANGELOG.md` section). A new runtime folder or root file must be added to the
+  lists in `tools/build-site.sh` — the script fails if `index.html` references something missing.
 
 Rules for changes:
 1. `npm test` must pass. Add or update tests for every behaviour change; a new rule in this file

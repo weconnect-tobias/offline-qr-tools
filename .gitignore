@@ -3,5 +3,8 @@ node_modules/
 test-results/
 playwright-report/
 
+# Output of tools/build-site.sh (published site and release zips)
+dist/
+
 # Local backups created while working on the project
 _backup-*/

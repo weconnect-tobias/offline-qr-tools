@@ -65,8 +65,12 @@ networks, not for networks that give access to sensitive systems.
 
 ## Usage
 
-Open `index.html` in a modern browser — double-clicking the file is enough — or serve the folder
-from any static web server. There is no build step and nothing to install.
+- **Online:** <https://weconnect-tobias.github.io/offline-qr-tools/> — still runs entirely in
+  your browser; nothing you type is sent anywhere.
+- **Offline:** download `offline-qr-tools-<version>.zip` from
+  [Releases](https://github.com/weconnect-tobias/offline-qr-tools/releases), check it against
+  the `.sha256` file, unzip and double-click `index.html`. Nothing to install.
+- **Your own server:** serve the unzipped folder from any static web server (see below).
 
 ## Hosting on a web server
 
@@ -95,6 +99,18 @@ Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains
 
 `frame-ancestors` prevents other sites from embedding the page (clickjacking); it is ignored when
 set in a `<meta>` tag, which is why it must come from the server. Only send HSTS over HTTPS.
+
+GitHub Pages cannot send these headers, so the online version relies on the page's own
+Content-Security-Policy; host it yourself if you need `frame-ancestors`.
+
+## Publishing (maintainers)
+
+- **Site:** every push to `main` runs the tests and publishes to GitHub Pages
+  (`.github/workflows/pages.yml`; one-time setup: Settings → Pages → Source "GitHub Actions").
+- **Release:** set `version` in `package.json`, move the "Unreleased" notes in `CHANGELOG.md` to a
+  new version section, commit, then `git tag v<version> && git push origin v<version>`. The
+  release workflow tests, builds the zip with `tools/build-site.sh` and publishes it with a
+  SHA-256 checksum and the changelog section as notes.
 
 ## Development and tests
 

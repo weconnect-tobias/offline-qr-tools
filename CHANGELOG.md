@@ -6,6 +6,8 @@ All notable changes are listed here. The format follows
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-03
+
 ### Added
 - Content types: web address, text, e-mail, phone, SMS, contact card (vCard), location,
   calendar event and Swish payment, next to Wi-Fi.
@@ -23,6 +25,7 @@ All notable changes are listed here. The format follows
 - Light and dark mode following the operating system; exports and prints stay white.
 - Language follows the browser (Swedish/English) with a remembered manual choice.
 - Device test checklist (`docs/device-testing.md`), `SECURITY.md`.
+- Publishing to GitHub Pages and release zips with a SHA-256 checksum (`tools/build-site.sh`).
 
 ### Security
 - Strict CSP with no network access; hardened logo pipeline; design files validated field by
