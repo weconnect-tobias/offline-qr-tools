@@ -1,0 +1,64 @@
+name: Release
+
+# Creates a GitHub release with a ready-to-use zip when a version tag is pushed:
+#   git tag v1.1.0 && git push origin v1.1.0
+# The tag must match "version" in package.json and have a section in CHANGELOG.md.
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm test
+
+  release:
+    name: Build and publish release
+    needs: test
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write   # create the release and upload the zip
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check that tag, package.json and CHANGELOG agree
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          PKG=$(node -p "require('./package.json').version")
+          if [ "$VERSION" != "$PKG" ]; then echo "Tag $GITHUB_REF_NAME does not match package.json $PKG"; exit 1; fi
+          if ! grep -q "^## \[$VERSION\]" CHANGELOG.md; then echo "CHANGELOG.md has no section for $VERSION"; exit 1; fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Build zip
+        run: bash tools/build-site.sh --zip "$VERSION"
+
+      - name: Release notes from CHANGELOG.md
+        run: |
+          awk -v v="$VERSION" '
+            $0 ~ "^## \\[" v "\\]" { on = 1; next }
+            on && /^## \[/ { exit }
+            on { print }
+          ' CHANGELOG.md > dist/notes.md
+          printf '\n---\nSHA-256: `%s`\n' "$(cut -d' ' -f1 "dist/offline-qr-tools-$VERSION.zip.sha256")" >> dist/notes.md
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            "dist/offline-qr-tools-$VERSION.zip" \
+            "dist/offline-qr-tools-$VERSION.zip.sha256" \
+            --title "Offline QR Tools $VERSION" \
+            --notes-file dist/notes.md

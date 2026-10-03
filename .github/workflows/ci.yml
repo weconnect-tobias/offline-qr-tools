@@ -24,6 +24,9 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm test
+      # The published site and release zip are built from the same file list; fail early if
+      # index.html references something the build would leave out.
+      - run: bash tools/build-site.sh
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
