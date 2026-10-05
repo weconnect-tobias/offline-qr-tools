@@ -19,6 +19,32 @@ test("escapeXml neutralises markup", () => {
   assert.equal(get("escapeXml")(`<script>"x"&'y'</script>`), "&lt;script&gt;&quot;x&quot;&amp;&#39;y&#39;&lt;/script&gt;");
 });
 
+test("escapeXml drops characters XML 1.0 cannot hold, so an SVG export always parses", () => {
+  const escapeXml = get("escapeXml");
+  assert.equal(escapeXml("A\u0001B\u000bC\u000cD\uFFFE"), "ABCD");
+  assert.equal(escapeXml("tab\tnew\nline"), "tab\tnew\nline", "tab and newline are allowed");
+  assert.equal(escapeXml("x\uD800"), "x\uFFFD", "a lone surrogate becomes U+FFFD");
+});
+
+test("toWellFormed keeps pairs and replaces lone surrogates", () => {
+  const toWellFormed = get("toWellFormed");
+  assert.equal(toWellFormed("😀ab"), "😀ab");
+  assert.equal(toWellFormed("\uDC00\uDC00"), "\uFFFD\uFFFD");
+  assert.equal(toWellFormed("\uD800\uD83D\uDE00"), "\uFFFD😀");
+});
+
+test("debounce.flush runs a pending call at once, and only then", () => {
+  let calls = 0;
+  const d = get("debounce")(() => { calls++; }, 10000);
+  d.flush();
+  assert.equal(calls, 0, "nothing pending");
+  d();
+  d.flush();
+  assert.equal(calls, 1);
+  d.flush();
+  assert.equal(calls, 1, "not twice");
+});
+
 test("escapeWifi escapes the five reserved characters", () => {
   assert.equal(get("escapeWifi")('\\;,:"'), '\\\\\\;\\,\\:\\"');
 });

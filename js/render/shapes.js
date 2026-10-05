@@ -288,6 +288,8 @@ const ALIGNMENT_POSITIONS = [
 function isStructuralModule(row, col, n) {
   if (row < 8 && col < 8 || row < 8 && col >= n - 8 || row >= n - 8 && col < 8) return true;
   if (row === 6 || col === 6) return true;
+  // Format information (error correction level and mask) next to the finders.
+  if (row === 8 && (col < 9 || col >= n - 8) || col === 8 && (row < 9 || row >= n - 8)) return true;
   const centres = ALIGNMENT_POSITIONS[(n - 17) / 4 - 1] || [];
   for (let i = 0; i < centres.length; i++) {
     for (let j = 0; j < centres.length; j++) {

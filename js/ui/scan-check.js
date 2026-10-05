@@ -20,12 +20,22 @@ const SCAN_STATUS_ICONS = { checking: "…", ok: "✓", warn: "!", fail: "✕", 
 
 let scanTimer = null;
 let scanToken = 0;
+let pendingScan = null;
 let lastScanStatus = null;
+
+// A check that is still waiting must not report on a preview that has been replaced
+// (by the demo, an error or nothing at all).
+function cancelScanCheck() {
+  clearTimeout(scanTimer);
+  scanToken++;
+  pendingScan = null;
+}
 
 function setScanStatus(status, key) {
   lastScanStatus = status;
   const el = $("#scanStatus");
   if (!status) {
+    cancelScanCheck();
     el.attr("hidden", true).removeAttr("data-state");
     return;
   }
@@ -90,17 +100,27 @@ function scheduleScanCheck(canvas, cellPx, payload) {
     setScanStatus("unavailable", "scanUnavailable");
     return;
   }
-  const token = ++scanToken;
+  cancelScanCheck();
+  const token = scanToken;
   setScanStatus("checking", "scanChecking");
-  clearTimeout(scanTimer);
+  pendingScan = { canvas: canvas, cellPx: cellPx, payload: payload };
   scanTimer = setTimeout(function() {
-    let result;
-    try {
-      result = verifyScan(canvas, cellPx, payload);
-    } catch (e) {
-      result = { status: "unavailable", key: "scanUnavailable" };
-    }
     // Ignore results for a preview that has since been replaced.
-    if (token === scanToken) setScanStatus(result.status, result.key);
+    if (token === scanToken) runPendingScanCheck();
   }, SCAN_DEBOUNCE_MS);
+}
+
+// Runs a waiting check now, so a download never skips the "cannot be scanned" confirmation.
+function runPendingScanCheck() {
+  if (!pendingScan) return;
+  const job = pendingScan;
+  clearTimeout(scanTimer);
+  pendingScan = null;
+  let result;
+  try {
+    result = verifyScan(job.canvas, job.cellPx, job.payload);
+  } catch (e) {
+    result = { status: "unavailable", key: "scanUnavailable" };
+  }
+  setScanStatus(result.status, result.key);
 }

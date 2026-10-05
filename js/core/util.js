@@ -10,8 +10,29 @@ function escapeWifi(str) {
   return str.replace(/([\\;,:"])/g, "\\$1");
 }
 
+// Unpaired UTF-16 surrogates (e.g. half an emoji from a broken paste) cannot be encoded as
+// UTF-8 and make encodeURIComponent throw. They are replaced by U+FFFD before any use.
+function toWellFormed(str) {
+  const s = String(str);
+  if (!/[\uD800-\uDFFF]/.test(s)) return s;
+  let out = "";
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c >= 0xD800 && c <= 0xDBFF && i + 1 < s.length && s.charCodeAt(i + 1) >= 0xDC00 && s.charCodeAt(i + 1) <= 0xDFFF) {
+      out += s.charAt(i) + s.charAt(i + 1);
+      i++;
+    } else {
+      out += c >= 0xD800 && c <= 0xDFFF ? "\uFFFD" : s.charAt(i);
+    }
+  }
+  return out;
+}
+
+// Characters XML 1.0 does not allow at all (most C0 controls, U+FFFE/U+FFFF, lone surrogates)
+// make an exported SVG unreadable, so they are removed rather than escaped.
 function escapeXml(str) {
-  return String(str)
+  return toWellFormed(str)
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g, "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -83,12 +104,31 @@ function roundRectD(x, y, w, h, r) {
     "V" + f(y + tl) + arc(tl, x + tl, y) + "Z";
 }
 
+// .flush() runs a pending call at once (e.g. before a download, so it uses the latest input).
 function debounce(fn, ms) {
   let timer = null;
-  return function() {
+  const debounced = function() {
     clearTimeout(timer);
-    timer = setTimeout(fn, ms);
+    timer = setTimeout(function() { timer = null; fn(); }, ms);
   };
+  debounced.flush = function() {
+    if (timer === null) return;
+    clearTimeout(timer);
+    timer = null;
+    fn();
+  };
+  return debounced;
+}
+
+// 64-bit FNV-1a over UTF-16 code units, as 16 hex digits (an identifier, not a security hash).
+function hashHex(text) {
+  let h1 = 0x811c9dc5, h2 = 0x050c5d1f;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    h1 = Math.imul(h1 ^ c, 0x01000193) >>> 0;
+    h2 = Math.imul(h2 ^ c, 0x01000193) >>> 0;
+  }
+  return h1.toString(16).padStart(8, "0") + h2.toString(16).padStart(8, "0");
 }
 
 function utf8ByteLength(str) {

@@ -61,10 +61,6 @@ $("#pswd").on("input", function(e) {
   if (e.originalEvent) $("#genPwdNote").hide(); // typed by the user, not generated
 });
 
-$("#anonIdentity").on("change", function() {
-  $("#identity").prop("disabled", $(this).is(":checked"));
-});
-
 function currentTemplate() {
   return FRAME_TEMPLATES[$("#frameStyle").val()] || FRAME_TEMPLATES.none;
 }
@@ -184,14 +180,15 @@ function checkQrContrast() {
 const PASSWORD_ECHO_MIN_LENGTH = 4; // shorter strings match too many ordinary words
 
 function checkPasswordInText() {
-  const pswd = currentType === "wifi" ? $("#pswd").val() : "";
+  const pswd = currentType === "wifi" && $("#security").val() !== "nopass" ? $("#pswd").val() : "";
   const visibleText = ($("#titleText").val() + "\n" + $("#captionText").val()).toLowerCase();
   const leaked = $("#textStyle").val() !== "none" && pswd.length >= PASSWORD_ECHO_MIN_LENGTH &&
     visibleText.indexOf(pswd.toLowerCase()) >= 0;
   $("#textPasswordWarning").toggle(leaked);
 }
 
-// Which field an error belongs to, per QR type (several types share error keys).
+// Which field(s) an error belongs to, per QR type (several types share error keys). When the
+// message cannot tell which of two fields is wrong, both are marked.
 const ERROR_FIELDS = {
   wifi: { errSsidTooLong: "#ssid", errPswdWpa: "#pswd", errPswdWep: "#pswd" },
   url: { errUrlInvalid: "#urlInput", errUrlScheme: "#urlInput", errUrlCredentials: "#urlInput", errUrlTooLong: "#urlInput" },
@@ -200,9 +197,9 @@ const ERROR_FIELDS = {
   phone: { errPhoneInvalid: "#phoneNumber" },
   sms: { errPhoneInvalid: "#smsNumber", errTextTooLong: "#smsMessage" },
   vcard: { errPhoneInvalid: "#vcPhone", errEmailInvalid: "#vcEmail", errUrlInvalid: "#vcUrl", errUrlScheme: "#vcUrl", errUrlCredentials: "#vcUrl", errUrlTooLong: "#vcUrl", errTextTooLong: "#vcNote" },
-  geo: { errGeoInvalid: "#geoLat" },
+  geo: { errGeoInvalid: "#geoLat, #geoLon" },
   swish: { errSwishNumber: "#swNumber", errSwishAmount: "#swAmount", errSwishMessage: "#swMessage" },
-  event: { errEventStart: "#evStartDate", errEventEnd: "#evEndDate", errTextTooLong: "#evDescription" }
+  event: { errEventStart: "#evStartDate, #evStartTime", errEventEnd: "#evEndDate, #evEndTime", errTextTooLong: "#evDescription" }
 };
 
 // Marks the offending field invalid and points it at the message, so screen readers
@@ -212,10 +209,12 @@ function setFieldError(key) {
     const ids = ($(this).attr("aria-describedby") || "").split(" ").filter(function(id) { return id && id !== "formError"; });
     if (ids.length) $(this).attr("aria-describedby", ids.join(" ")); else $(this).removeAttr("aria-describedby");
   });
-  const field = key && (ERROR_FIELDS[currentType] || {})[key];
-  if (field) {
-    const ids = ($(field).attr("aria-describedby") || "").split(" ").filter(Boolean).concat("formError");
-    $(field).attr({ "aria-invalid": "true", "aria-describedby": ids.join(" ") });
+  const fields = key && (ERROR_FIELDS[currentType] || {})[key];
+  if (fields) {
+    $(fields).each(function() {
+      const ids = ($(this).attr("aria-describedby") || "").split(" ").filter(Boolean).concat("formError");
+      $(this).attr({ "aria-invalid": "true", "aria-describedby": ids.join(" ") });
+    });
   }
 }
 
@@ -446,6 +445,23 @@ function errorCorrectionLevel() {
   return EC_LEVELS.indexOf(level) >= 0 ? level : "Q";
 }
 
+// The smallest codes (version 1–2, 21–25 modules) have too few data modules to lose the area
+// behind a logo: short payloads with a logo did not scan. With a logo the code is at least
+// version 3, which scanned at every logo size in the tests.
+const LOGO_MIN_VERSION = 3;
+
+function makeQr(payload) {
+  let qr = qrcode(0, errorCorrectionLevel());
+  qr.addData(payload);
+  qr.make();
+  if (logoImage && qr.getModuleCount() < 17 + 4 * LOGO_MIN_VERSION) {
+    qr = qrcode(LOGO_MIN_VERSION, errorCorrectionLevel());
+    qr.addData(payload);
+    qr.make();
+  }
+  return qr;
+}
+
 function updateAdvancedNotes() {
   $("#ecLogoNote").toggle(Boolean(logoImage) && $("#ecLevel").val() !== "auto" && $("#ecLevel").val() !== "H");
   $("#quietZoneNote").toggle($("#quietZone").val() === "2");
@@ -459,10 +475,7 @@ function fileBaseName() {
 function showDemo() {
   try {
     const demoResult = buildQrPayload(currentType, demoInput(currentType));
-    const demo = qrcode(0, errorCorrectionLevel());
-    demo.addData(demoResult.payload);
-    demo.make();
-    currentQR = demo;
+    currentQR = makeQr(demoResult.payload);
     currentPayload = null;
     currentSummary = demoResult.summary;
     isDemo = true;
@@ -491,9 +504,7 @@ function updatePreview() {
 
   let qr;
   try {
-    qr = qrcode(0, errorCorrectionLevel());
-    qr.addData(result.payload);
-    qr.make();
+    qr = makeQr(result.payload);
   } catch (e) {
     $("#qrcode").empty().append($("<span class='qr-error'></span>").text(t("errorTooLong")));
     $("#demoLabel").hide();
@@ -565,6 +576,10 @@ function triggerDownload(href, filename) {
 }
 
 $("#download").on("click", function() {
+  // A click right after typing must export what was typed, and must not skip the
+  // confirmation because the self-test has not run yet.
+  updatePreviewDebounced.flush();
+  runPendingScanCheck();
   if (!currentQR || isDemo) return;
   if (lastScanStatus === "fail" && !window.confirm(t("scanFailConfirm"))) return;
   const format = $("#exportFormat").val();
@@ -585,12 +600,16 @@ $("#download").on("click", function() {
     const canvas = sceneToCanvas(buildScene(currentQR, 1600, opts));
     const dataUrl = canvas.toDataURL("image/png");
 
-    const widthMM = Math.max(20, Math.min(250, parseFloat($("#pdfWidthMM").val()) || 80));
-    const heightMM = widthMM * (canvas.height / canvas.width);
-
     const doc = new window.jspdf.jsPDF({ orientation: $("#pdfOrientation").val(), unit: "mm", format: $("#pdfPaper").val() });
     const pageW = doc.internal.pageSize.getWidth();
     const pageH = doc.internal.pageSize.getHeight();
+    // The chosen width is shrunk to fit inside a 10 mm margin: a code cut off at the page
+    // edge (e.g. 250 mm on A4, or tall artwork on A6) loses its quiet zone and finders.
+    const wanted = Math.max(20, Math.min(250, parseFloat($("#pdfWidthMM").val()) || 80));
+    const ratio = canvas.height / canvas.width;
+    const fit = Math.min(1, (pageW - 20) / wanted, (pageH - 20) / (wanted * ratio));
+    const widthMM = wanted * fit;
+    const heightMM = widthMM * ratio;
     // "SLOW" = maximum deflate. Without an explicit compression jsPDF 4 embeds the
     // bitmap uncompressed (~7.7 MB for a 1600 px render instead of ~25 kB).
     doc.addImage(dataUrl, "PNG", (pageW - widthMM) / 2, (pageH - heightMM) / 2, widthMM, heightMM, undefined, "SLOW");

@@ -8,6 +8,7 @@
  *  - The same pipeline (loadLogoBuffer) is used for logos inside design files.
  *
  * Depends on: jQuery, ui/state.js; showMessage()/updatePreview() from app.js at event time
+ * (the load functions are only called after app.js has loaded)
  * ========================================================================= */
 
 const LOGO_MAX_BYTES = 2 * 1024 * 1024;
@@ -21,7 +22,12 @@ function sniffImageMime(bytes) {
   return null;
 }
 
+// Every load gets a number. Decoding is asynchronous, so a slow, older load (or one the user
+// has removed in the meantime) must never overwrite what was chosen after it.
+let logoLoadSeq = 0;
+
 function clearLogo() {
+  logoLoadSeq++;
   logoImage = null;
   logoDataUrl = null;
   $("#logoFile").val("");
@@ -36,50 +42,71 @@ function rejectLogo(key) {
   updatePreview();
 }
 
-function acceptNormalizedLogo(img) {
+function loadImage(src) {
+  return new Promise(function(resolve, reject) {
+    const img = new Image();
+    img.onload = function() { resolve(img); };
+    img.onerror = function() { reject("logoErrRead"); };
+    img.src = src;
+  });
+}
+
+// Re-encodes a decoded image to a clean PNG data URL → Promise<{ img, dataUrl }>.
+function normalizeLogo(img) {
   const scale = Math.min(1, LOGO_NORMALIZED_MAX / Math.max(img.naturalWidth, img.naturalHeight));
   const c = document.createElement("canvas");
   c.width = Math.max(1, Math.round(img.naturalWidth * scale));
   c.height = Math.max(1, Math.round(img.naturalHeight * scale));
   c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
   const dataUrl = c.toDataURL("image/png");
-
-  const clean = new Image();
-  clean.onload = function() {
-    logoImage = clean;
-    logoDataUrl = dataUrl;
-    $("#logoPreview").empty().append($("<img>").attr({ src: dataUrl, alt: t("logoPreviewAlt") }));
-    $("#removeLogo").show();
-    $("#logoExtras").show();
-    updatePreview();
-  };
-  clean.onerror = function() { rejectLogo("logoErrRead"); };
-  clean.src = dataUrl;
+  return loadImage(dataUrl).then(function(clean) { return { img: clean, dataUrl: dataUrl }; });
 }
 
-// Shared by the file picker and design files (js/ui/design-file.js): size cap → sniff →
-// decode → dimension check → re-encode. The original bytes are only ever decoded.
-function loadLogoBuffer(buf) {
-  showMessage("#logoError", null);
-  if (buf.byteLength > LOGO_MAX_BYTES) { rejectLogo("logoErrSize"); return; }
+// The hardened pipeline, shared by the file picker and design files (js/ui/design-file.js):
+// size cap → sniff → decode → dimension check → re-encode. The original bytes are only ever
+// decoded. Resolves to { img, dataUrl }; rejects with an i18n error key. Changes nothing.
+function decodeLogoBuffer(buf) {
+  if (buf.byteLength > LOGO_MAX_BYTES) return Promise.reject("logoErrSize");
   const mime = sniffImageMime(new Uint8Array(buf, 0, Math.min(16, buf.byteLength)));
-  if (!mime) { rejectLogo("logoErrType"); return; }
-
+  if (!mime) return Promise.reject("logoErrType");
   const blobUrl = URL.createObjectURL(new Blob([buf], { type: mime }));
-  const img = new Image();
-  img.onload = function() {
+  return loadImage(blobUrl).then(function(img) {
     URL.revokeObjectURL(blobUrl);
     if (!img.naturalWidth || img.naturalWidth > LOGO_MAX_DIMENSION || img.naturalHeight > LOGO_MAX_DIMENSION) {
-      rejectLogo("logoErrDims");
-      return;
+      throw "logoErrDims";
     }
-    acceptNormalizedLogo(img);
-  };
-  img.onerror = function() {
+    return normalizeLogo(img);
+  }, function(key) {
     URL.revokeObjectURL(blobUrl);
-    rejectLogo("logoErrRead");
-  };
-  img.src = blobUrl;
+    throw key;
+  });
+}
+
+// Shows a decoded logo right away (and cancels any load still in progress).
+function useDecodedLogo(logo) {
+  logoLoadSeq++;
+  logoImage = logo.img;
+  logoDataUrl = logo.dataUrl;
+  showMessage("#logoError", null);
+  $("#logoPreview").empty().append($("<img>").attr({ src: logo.dataUrl, alt: t("logoPreviewAlt") }));
+  $("#removeLogo").show();
+  $("#logoExtras").show();
+  updatePreview();
+}
+
+// Applies the result of a load only if no newer load or removal happened meanwhile.
+function finishLogoLoad(promise) {
+  const seq = ++logoLoadSeq;
+  showMessage("#logoError", null);
+  promise.then(function(logo) {
+    if (seq === logoLoadSeq) useDecodedLogo(logo);
+  }, function(key) {
+    if (seq === logoLoadSeq) rejectLogo(typeof key === "string" ? key : "logoErrRead");
+  });
+}
+
+function loadLogoBuffer(buf) {
+  finishLogoLoad(decodeLogoBuffer(buf));
 }
 
 // Logos shipped with the app (the Swish symbol in js/assets/swish-symbols.js). They are trusted
@@ -88,11 +115,7 @@ function loadLogoBuffer(buf) {
 function loadBundledLogo(dataUrl) {
   const bundled = typeof SWISH_SYMBOLS === "object" ? Object.keys(SWISH_SYMBOLS).map(function(k) { return SWISH_SYMBOLS[k]; }) : [];
   if (bundled.indexOf(dataUrl) < 0) return;
-  showMessage("#logoError", null);
-  const img = new Image();
-  img.onload = function() { acceptNormalizedLogo(img); };
-  img.onerror = function() { rejectLogo("logoErrRead"); };
-  img.src = dataUrl;
+  finishLogoLoad(loadImage(dataUrl).then(normalizeLogo));
 }
 
 $("#logoFile").on("change", function(e) {
@@ -101,7 +124,7 @@ $("#logoFile").on("change", function(e) {
   if (!file) return;
   // Checked before reading so a huge file is never loaded into memory.
   if (file.size > LOGO_MAX_BYTES) { rejectLogo("logoErrSize"); return; }
-  file.arrayBuffer().then(loadLogoBuffer).catch(function() { rejectLogo("logoErrRead"); });
+  finishLogoLoad(file.arrayBuffer().then(decodeLogoBuffer, function() { throw "logoErrRead"; }));
 });
 
 $("#removeLogo").on("click", function() {

@@ -1,7 +1,7 @@
 "use strict";
 
 const fs = require("node:fs");
-const { test, expect, openApp, openAllSections, enterNetwork } = require("./fixtures");
+const { test, expect, installGuards, openApp, openAllSections, enterNetwork } = require("./fixtures");
 
 const AXE = fs.readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
 
@@ -82,6 +82,7 @@ test("exports and print previews are identical in light and dark mode", async ({
   for (const colorScheme of ["light", "dark"]) {
     const context = await browser.newContext({ colorScheme, locale: "sv-SE", acceptDownloads: true });
     const page = await context.newPage();
+    const verify = await installGuards(page); // its own context, so the guards are added here
     await openApp(page);
     await openAllSections(page);
     await enterNetwork(page, "Kafé Åkerö", "Hemligt;lösen:1234");
@@ -95,6 +96,7 @@ test("exports and print previews are identical in light and dark mode", async ({
       return c ? c.toDataURL() : null;
     });
     results.push({ colorScheme, png, print });
+    verify();
     await context.close();
   }
   expect(results[0].png.equals(results[1].png)).toBe(true);

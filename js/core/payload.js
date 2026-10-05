@@ -56,13 +56,15 @@ function buildWifiPayload(input) {
     const anon = !!input.anonymous;
     const identity = String(input.identity || "").trim();
 
-    if (!anon && !identity) return { error: "identity" };
+    // The username (I:) is always needed to log in. "Anonymous outer identity" only adds A:,
+    // the name sent unencrypted before the tunnel is set up; it does not replace the username.
+    if (!identity) return { error: "identity" };
     if (!pswd) return { error: "pswd" };
 
     payload = "WIFI:T:WPA2-EAP;S:" + escapeWifi(ssid) + ";E:" + eapMethod;
     if (phase2) payload += ";PH2:" + phase2;
     if (anon) payload += ";A:anonymous";
-    else payload += ";I:" + escapeWifi(identity);
+    payload += ";I:" + escapeWifi(identity);
     payload += ";P:" + escapeWifi(pswd) + ";;";
   } else {
     if (!pswd) return { error: "pswd" };

@@ -61,7 +61,8 @@ test("text: kept verbatim (CRLF normalised); summary is the first line", () => {
 
 test("email: mailto with encoded subject and body", () => {
   const r = build("email", { to: "info@example.se", subject: "Hej & välkommen?", body: "Rad 1\nRad 2" });
-  assert.equal(r.payload, "mailto:info@example.se?subject=Hej%20%26%20v%C3%A4lkommen%3F&body=Rad%201%0ARad%202");
+  // Line breaks in the body are CRLF (%0D%0A), as RFC 6068 requires.
+  assert.equal(r.payload, "mailto:info@example.se?subject=Hej%20%26%20v%C3%A4lkommen%3F&body=Rad%201%0D%0ARad%202");
   assert.equal(r.summary, "info@example.se");
 });
 
@@ -132,14 +133,19 @@ const lines = (r) => r.payload.split("\r\n");
 
 test("event: timed event with floating local time and CRLF lines", () => {
   const r = ev({ title: "Öppet hus", location: "Storgatan 1, Strömstad", startDate: "2026-10-03", startTime: "14:00", endDate: "", endTime: "16:30", description: "Fika finns" });
-  assert.deepEqual(lines(r), [
-    "BEGIN:VCALENDAR", "VERSION:2.0", "BEGIN:VEVENT", "SUMMARY:Öppet hus",
+  const out = lines(r);
+  assert.match(out[4], /^UID:[0-9a-f]{16}@offline-qr-tools$/);
+  assert.deepEqual(out.slice(0, 4).concat(out.slice(5)), [
+    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//offline-qr-tools//EN", "BEGIN:VEVENT",
+    "DTSTAMP:20261003T000000Z", "SUMMARY:Öppet hus",
     "DTSTART:20261003T140000", "DTEND:20261003T163000",
     "LOCATION:Storgatan 1\\, Strömstad", "DESCRIPTION:Fika finns",
     "END:VEVENT", "END:VCALENDAR"
   ]);
   assert.equal(r.summary, "Öppet hus");
-  assert.doesNotMatch(r.payload, /Z\r\n|TZID/, "no time zone: same wall-clock time everywhere");
+  // No time zone on the event times: the same wall-clock time everywhere. (DTSTAMP is UTC by
+  // definition in RFC 5545; it is a record date, not when the event happens.)
+  assert.ok(out.filter((l) => /^DT(START|END)/.test(l)).every((l) => !/Z$|TZID/.test(l)), "no time zone");
 });
 
 test("event: without end the event lasts one hour, also across midnight", () => {
@@ -240,4 +246,75 @@ test("swish: the message cannot add or override URL parameters", () => {
   assert.equal(url.searchParams.getAll("sw").length, 1);
   assert.equal(url.hash, "");
   assert.equal(url.origin + url.pathname, "https://app.swish.nu/1/p/sw/");
+});
+
+/* ---- Regressions found in the code review ------------------------------ */
+
+test("event: PRODID, UID and DTSTAMP are present and the same event always gives the same code", () => {
+  const input = { title: "Fest", startDate: "2026-12-24", startTime: "18:00", endDate: "", endTime: "" };
+  const a = ev(input), b = ev(input);
+  assert.equal(a.payload, b.payload, "deterministic");
+  for (const prop of ["PRODID:", "UID:", "DTSTAMP:"]) assert.equal(lines(a).filter((l) => l.startsWith(prop)).length, 1, prop);
+  assert.notEqual(lines(ev(Object.assign({}, input, { title: "Annan fest" }))).find((l) => l.startsWith("UID:")),
+    lines(a).find((l) => l.startsWith("UID:")), "another event gets another UID");
+});
+
+test("geo: coordinates are written as typed, never in exponent notation", () => {
+  assert.equal(build("geo", { lat: "0.0000001", lon: "-0.00000005" }).payload, "geo:0.0000001,-0.00000005");
+  assert.equal(build("geo", { lat: "+058.9", lon: "011" }).payload, "geo:58.9,11");
+  assert.equal(build("geo", { lat: "-0.5", lon: "0" }).payload, "geo:-0.5,0");
+  assert.equal(build("geo", { lat: "90.1", lon: "0" }).error, "errGeoInvalid");
+});
+
+test("half an emoji (a lone surrogate) never crashes a builder or reaches a payload", () => {
+  const broken = "x\uD800y\uDC00";
+  const cases = [
+    ["email", { to: "a@example.com", subject: broken, body: broken }],
+    ["swish", { number: "0701234567", message: broken }],
+    ["text", { text: broken }],
+    ["sms", { number: "0701234567", message: broken }],
+    ["vcard", { firstName: broken }],
+    ["event", { title: broken, startDate: "2026-10-03", startTime: "10:00" }],
+    ["wifi", { ssid: broken, password: "correct horse", security: "WPA" }]
+  ];
+  for (const [type, input] of cases) {
+    const r = build(type, input);
+    assert.ok(r.payload, type);
+    assert.doesNotMatch(r.payload, /[\uD800-\uDFFF]/, type);
+  }
+});
+
+test("text: the summary never cuts an emoji in half", () => {
+  const r = build("text", { text: "a".repeat(38) + "😀😀😀" });
+  assert.equal(r.summary, "a".repeat(38) + "😀…");
+});
+
+test("url: the encoded address is capped too, not only what was typed", () => {
+  assert.equal(build("url", { url: "example.com/" + "å".repeat(1900) }).error, "errUrlTooLong");
+  assert.equal(build("url", { url: "https://example.com/" + "a".repeat(1900) }).error, "errUrlTooLong");
+  assert.ok(build("url", { url: "https://example.com/" + "a".repeat(900) }).payload);
+});
+
+test("url: a host with a port is an address, not a scheme", () => {
+  assert.equal(build("url", { url: "example.com:8080/menu" }).payload, "https://example.com:8080/menu");
+  assert.equal(build("url", { url: "localhost:3000" }).payload, "https://localhost:3000/");
+  for (const bad of ["javascript:alert(1)", "data:text/html,x", "file:///etc/passwd"]) {
+    assert.ok(build("url", { url: bad }).error, bad);
+  }
+});
+
+test("vcard: the website is a URI value and is not text-escaped", () => {
+  const r = build("vcard", { firstName: "A", url: "https://example.com/a,b;c" });
+  assert.ok(r.payload.split("\r\n").includes("URL:https://example.com/a,b;c"));
+});
+
+test("email: '#' and '%' in an address are rejected (fragment / percent-decoding tricks)", () => {
+  assert.equal(build("email", { to: "a#b@example.com" }).error, "errEmailInvalid");
+  assert.equal(build("email", { to: "a%3Fcc%3Devil@example.com" }).error, "errEmailInvalid");
+});
+
+test("swish: a foreign country code is rejected, not read as a 90 account", () => {
+  assert.equal(build("swish", { number: "+90 12345" }).error, "errSwishNumber");
+  assert.equal(build("swish", { number: "+1 070 123 45 67" }).error, "errSwishNumber");
+  assert.ok(build("swish", { number: "+46 70 123 45 67" }).payload.includes("sw=0701234567"));
 });

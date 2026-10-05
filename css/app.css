@@ -70,7 +70,13 @@
     --ok-text: #14532d; --ok-bg: #f0fdf4; --ok-border: #bbf7d0;
     --warn-text: #78350f; --warn-bg: #fffbeb; --warn-border: #fde68a;
     --fail-text: #7f1d1d; --fail-bg: #fef2f2; --fail-border: #fecaca;
+    --surface-hover: #f3f4f6; --border-strong: #1f2937; --focus: #1d4ed8; --shadow: rgba(0, 0, 0, 0.12);
+    --paper: #ffffff; --qr-error: #c0392b;
+    --ok-icon: #15803d; --warn-icon: #b45309; --fail-icon: #dc2626;
   }
+  /* The Wi-Fi password is never printed, not even when "Show" or "Create a strong password"
+   * has turned the field into plain text (AGENTS.md rule 2). */
+  #pswd { visibility: hidden; }
 }
 
   * { box-sizing: border-box; }

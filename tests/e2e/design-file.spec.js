@@ -94,13 +94,22 @@ test("broken and hostile design files are rejected with an accessible error", as
     await expect(page.locator("#designError")).toHaveAttribute("role", "alert");
   }
 
-  // A PNG header with garbage behind it passes the format check but fails decoding in the logo pipeline.
+  // A PNG header with garbage behind it passes the format check but fails decoding in the logo
+  // pipeline. The logo is checked before anything is applied, so the file changes nothing.
   const fake = testInfo.outputPath("fake-logo.json");
   const bytes = Buffer.concat([Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]), Buffer.from("<script>alert(1)</script>")]);
   fs.writeFileSync(fake, JSON.stringify({ format: "offline-qr-tools/design", version: 1, style: { qrShape: "dots", qrColor: "\"><script>" }, logo: "data:image/png;base64," + bytes.toString("base64") }));
+  const shapeBefore = await page.locator("#qrShape").inputValue();
+  await page.setInputFiles("#designFile", fake);
+  await expect(page.locator("#designError")).toHaveAttribute("data-i18n", "errDesignLogo");
+  await expect(page.locator("#designStatus")).toBeHidden();
+  await expect(page.locator("#qrShape")).toHaveValue(shapeBefore);
+  await expect(page.locator("#qrColor")).toHaveValue("#000000");
+
+  // The same file without the logo opens, and the invalid colour is skipped.
+  fs.writeFileSync(fake, JSON.stringify({ format: "offline-qr-tools/design", version: 1, style: { qrShape: "dots", qrColor: "\"><script>" } }));
   await page.setInputFiles("#designFile", fake);
   await expect(page.locator("#designStatus")).toHaveAttribute("data-i18n", "designOpenedPartly");
   await expect(page.locator("#qrShape")).toHaveValue("dots");
   await expect(page.locator("#qrColor")).toHaveValue("#000000");
-  await expect(page.locator("#logoError")).toHaveAttribute("data-i18n", "logoErrRead");
 });

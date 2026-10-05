@@ -23,8 +23,9 @@ const URL_MAX_LENGTH = 2000;
 const ALLOWED_URL_PROTOCOLS = ["http:", "https:"];
 
 // Pragmatic address check: one "@", no whitespace, no characters that could add
-// mailto: parameters (? & ,) or break the URI.
-const EMAIL_RE = /^[^\s@?&,;:<>()[\]\\"]+@[^\s@?&,;:<>()[\]\\"]+\.[^\s@?&,;:<>()[\]\\".]{2,}$/;
+// mailto: parameters (? & ,), start a fragment (#), be percent-decoded by the mail app (%)
+// or break the URI.
+const EMAIL_RE = /^[^\s@?&,;:<>()[\]\\"#%]+@[^\s@?&,;:<>()[\]\\"#%]+\.[^\s@?&,;:<>()[\]\\".#%]{2,}$/;
 
 function clean(value) {
   return String(value == null ? "" : value).trim();
@@ -32,6 +33,12 @@ function clean(value) {
 
 function tooLong(text) {
   return utf8ByteLength(text) > QR_TEXT_MAX_BYTES;
+}
+
+// Shortens to at most `max` characters (code points, so an emoji is never cut in half).
+function shorten(text, max) {
+  const chars = Array.from(text);
+  return chars.length > max ? chars.slice(0, max - 1).join("") + "…" : text;
 }
 
 /* ---- URL --------------------------------------------------------------- */
@@ -42,8 +49,10 @@ function parseWebUrl(raw) {
   if (!text) return { error: "empty" };
   if (text.length > URL_MAX_LENGTH) return { error: "errUrlTooLong" };
   // "example.com/menu" gets the https scheme prepended. Anything that already has a scheme is
-  // parsed as-is, so "javascript:…" is rejected below instead of being "fixed".
-  if (!/^[a-z][a-z0-9+.-]*:/i.test(text)) text = "https://" + text;
+  // parsed as-is, so "javascript:…" is rejected below instead of being "fixed". A host with a
+  // port ("example.com:8080/menu", "localhost:3000") is not a scheme.
+  const hasScheme = /^[a-z][a-z0-9+.-]*:/i.test(text) && !/^[a-z0-9.-]+:\d{1,5}(?:[/?#]|$)/i.test(text);
+  if (!hasScheme) text = "https://" + text;
   let url;
   try {
     url = new URL(text);
@@ -67,6 +76,8 @@ function buildUrl(input) {
   // and modifiable on the network. Both are allowed but flagged.
   if (url.hostname.split(".").some(function(label) { return label.indexOf("xn--") === 0; })) warning = "warnUrlPunycode";
   else if (url.protocol === "http:") warning = "warnUrlHttp";
+  // The length check above counts the typed text; the href can be much longer (å → %C3%A5).
+  if (tooLong(url.href)) return { error: "errUrlTooLong", visible: true };
   const summary = url.hostname + (url.pathname === "/" ? "" : url.pathname);
   return { payload: url.href, summary: summary, warning: warning };
 }
@@ -78,7 +89,7 @@ function buildText(input) {
   if (!text.trim()) return { error: "text" };
   if (tooLong(text)) return { error: "errTextTooLong", visible: true };
   const firstLine = text.trim().split("\n")[0];
-  return { payload: text, summary: firstLine.length > 40 ? firstLine.slice(0, 39) + "…" : firstLine };
+  return { payload: text, summary: shorten(firstLine, 40) };
 }
 
 /* ---- E-mail ------------------------------------------------------------ */
@@ -91,9 +102,9 @@ function buildEmail(input) {
   const subject = clean(input.subject);
   const body = String(input.body == null ? "" : input.body).replace(/\r\n?/g, "\n");
   // encodeURIComponent turns CR/LF, "&" and "?" into %xx, so subject/body cannot inject
-  // extra headers such as cc/bcc.
+  // extra headers such as cc/bcc. Line breaks in the body are CRLF, as RFC 6068 requires.
   if (subject) params.push("subject=" + encodeURIComponent(subject));
-  if (body.trim()) params.push("body=" + encodeURIComponent(body));
+  if (body.trim()) params.push("body=" + encodeURIComponent(body.replace(/\n/g, "\r\n")));
   const payload = "mailto:" + to + (params.length ? "?" + params.join("&") : "");
   if (tooLong(payload)) return { error: "errTextTooLong", visible: true };
   return { payload: payload, summary: to };
@@ -160,7 +171,8 @@ function buildVcard(input) {
   if (clean(input.url)) {
     const u = parseWebUrl(input.url);
     if (u.error) return { error: u.error === "empty" ? "errUrlInvalid" : u.error, visible: true };
-    lines.push("URL:" + escapeVcard(u.url.href));
+    // URL is a URI value, not text: it is not escaped (a normalised href has no line breaks).
+    lines.push("URL:" + u.url.href);
   }
   const adr = [input.street, input.city, input.zip, input.country].map(clean);
   if (adr.some(Boolean)) {
@@ -177,11 +189,13 @@ function buildVcard(input) {
 
 /* ---- Location ---------------------------------------------------------- */
 
+// Returns the coordinate as written (decimal point, no "+", no leading zeros), or null.
+// The text is kept instead of String(number), which would write 0.0000001 as "1e-7".
 function parseCoordinate(raw, limit) {
   const text = clean(raw).replace(",", ".");
   if (!/^[-+]?\d{1,3}(\.\d{1,8})?$/.test(text)) return null;
-  const value = parseFloat(text);
-  return Math.abs(value) <= limit ? value : null;
+  if (Math.abs(parseFloat(text)) > limit) return null;
+  return text.replace(/^\+/, "").replace(/^(-?)0+(?=\d)/, "$1");
 }
 
 function buildGeo(input) {
@@ -261,15 +275,20 @@ function buildEvent(input) {
   }
   if (end <= start) return { error: "errEventEnd", visible: true };
 
-  const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "BEGIN:VEVENT", "SUMMARY:" + escapeVcard(title)];
+  const props = ["SUMMARY:" + escapeVcard(title)];
   if (allDay) {
-    lines.push("DTSTART;VALUE=DATE:" + icalDate(start), "DTEND;VALUE=DATE:" + icalDate(end));
+    props.push("DTSTART;VALUE=DATE:" + icalDate(start), "DTEND;VALUE=DATE:" + icalDate(end));
   } else {
-    lines.push("DTSTART:" + icalDateTime(start), "DTEND:" + icalDateTime(end));
+    props.push("DTSTART:" + icalDateTime(start), "DTEND:" + icalDateTime(end));
   }
-  if (clean(input.location)) lines.push("LOCATION:" + escapeVcard(input.location));
-  if (clean(input.description)) lines.push("DESCRIPTION:" + escapeVcard(input.description));
-  lines.push("END:VEVENT", "END:VCALENDAR");
+  if (clean(input.location)) props.push("LOCATION:" + escapeVcard(input.location));
+  if (clean(input.description)) props.push("DESCRIPTION:" + escapeVcard(input.description));
+  // PRODID, UID and DTSTAMP are required by RFC 5545. They are derived from the event so the
+  // same event always gives the same code: scanning two printouts updates one calendar entry
+  // instead of creating two. DTSTAMP must be UTC; the start day is used, not the clock.
+  const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//offline-qr-tools//EN", "BEGIN:VEVENT",
+    "UID:" + hashHex(props.join("\n")) + "@offline-qr-tools",
+    "DTSTAMP:" + icalDate(startDay) + "T000000Z"].concat(props, ["END:VEVENT", "END:VCALENDAR"]);
 
   const payload = lines.join("\r\n");
   if (tooLong(payload)) return { error: "errTextTooLong", visible: true };
@@ -300,8 +319,13 @@ function normalizeSwishNumber(raw) {
   const text = clean(raw);
   if (!/^\+?[\d\s\-()]+$/.test(text)) return null;
   let digits = text.replace(/[^\d]/g, "");
-  if (text.charAt(0) === "+" && digits.indexOf("46") === 0) digits = "0" + digits.slice(2);
-  else if (digits.indexOf("0046") === 0) digits = "0" + digits.slice(4);
+  if (text.charAt(0) === "+") {
+    // Swish is Swedish only: any other country code is an error, not a "90 account".
+    if (digits.indexOf("46") !== 0) return null;
+    digits = "0" + digits.slice(2);
+  } else if (digits.indexOf("0046") === 0) {
+    digits = "0" + digits.slice(4);
+  }
   return /^07\d{8}$/.test(digits) || /^123\d{7}$/.test(digits) || /^90\d{5}$/.test(digits) ? digits : null;
 }
 
@@ -378,5 +402,10 @@ const QR_TYPE_IDS = Object.keys(QR_TYPES);
 function buildQrPayload(type, input) {
   const t = QR_TYPES[type];
   if (!t) return { error: "type" };
-  return t.build(input || {});
+  // Every text field is made well-formed first, so no builder ever sees half an emoji.
+  const safe = {};
+  Object.keys(input || {}).forEach(function(key) {
+    safe[key] = typeof input[key] === "string" ? toWellFormed(input[key]) : input[key];
+  });
+  return t.build(safe);
 }

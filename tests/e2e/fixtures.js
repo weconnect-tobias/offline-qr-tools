@@ -9,31 +9,41 @@ const path = require("node:path");
 const ROOT = path.resolve(__dirname, "..", "..");
 const LOCAL = /^(http:\/\/127\.0\.0\.1:4173\/|file:|data:|blob:)/;
 
-const test = base.test.extend({
-  guarded: async ({ page }, use) => {
-    const external = [];
-    const errors = [];
-    await page.addInitScript(() => {
-      window.__cspViolations = [];
-      document.addEventListener("securitypolicyviolation", (e) => {
-        window.__cspViolations.push(e.violatedDirective + " " + (e.blockedURI || ""));
-      });
+// Installs the guards on a page and returns a function that asserts nothing went wrong.
+// CSP violations are reported through an exposed binding, which survives navigations
+// (a window variable would be reset by every page load).
+async function installGuards(page) {
+  const external = [];
+  const errors = [];
+  const csp = [];
+  await page.exposeBinding("__reportCspViolation", (source, text) => { csp.push(text); });
+  await page.addInitScript(() => {
+    document.addEventListener("securitypolicyviolation", (e) => {
+      window.__reportCspViolation(e.violatedDirective + " " + (e.blockedURI || ""));
     });
-    await page.route("**/*", (route) => {
-      const url = route.request().url();
-      if (LOCAL.test(url)) return route.continue();
-      external.push(url);
-      return route.abort();
-    });
-    page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
-    page.on("console", (m) => { if (m.type() === "error") errors.push("console: " + m.text()); });
+  });
+  await page.route("**/*", (route) => {
+    const url = route.request().url();
+    if (LOCAL.test(url)) return route.continue();
+    external.push(url);
+    return route.abort();
+  });
+  page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
+  page.on("console", (m) => { if (m.type() === "error") errors.push("console: " + m.text()); });
+  page.on("crash", () => errors.push("page crashed"));
 
-    await use(page);
-
-    const csp = await page.evaluate(() => window.__cspViolations || []).catch(() => []);
+  return function verify() {
     base.expect(external, "network requests to external hosts").toEqual([]);
     base.expect(csp, "Content-Security-Policy violations").toEqual([]);
     base.expect(errors, "console / page errors").toEqual([]);
+  };
+}
+
+const test = base.test.extend({
+  guarded: async ({ page }, use) => {
+    const verify = await installGuards(page);
+    await use(page);
+    verify();
   }
 });
 
@@ -107,4 +117,4 @@ async function download(page, trigger) {
   return { name: dl.suggestedFilename(), data: fs.readFileSync(await dl.path()) };
 }
 
-module.exports = { test, expect: base.expect, ROOT, openApp, openAllSections, enterNetwork, waitForScan, decodePng, pdfSearchableText, download };
+module.exports = { test, expect: base.expect, ROOT, installGuards, openApp, openAllSections, enterNetwork, waitForScan, decodePng, pdfSearchableText, download };

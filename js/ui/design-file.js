@@ -6,7 +6,7 @@
  * Writes the current appearance to a .json file and applies such a file again.
  * Format, validation and the security rules are in core/design.js: only appearance is
  * stored (never content or texts), every imported value is validated, and an imported
- * logo goes through the hardened logo pipeline (loadLogoBuffer() in ui/logo.js).
+ * logo goes through the hardened logo pipeline (decodeLogoBuffer() in ui/logo.js).
  *
  * Depends on: jQuery, core/design.js, ui/state.js, ui/logo.js;
  *             showMessage(), updatePreview(), triggerDownload() from app.js at event time
@@ -82,10 +82,16 @@ $("#designFile").on("change", function(e) {
   file.text().then(function(text) {
     const result = parseDesignFile(text, designEnumOptions());
     if (result.error) { showMessage("#designError", result.error); return; }
-    applyDesignControls(result.style);
-    // Without a logo in the file the current logo is kept.
-    if (result.logoBase64) loadLogoBuffer(base64ToArrayBuffer(result.logoBase64));
-    updatePreview();
-    showMessage("#designStatus", result.skipped ? "designOpenedPartly" : "designOpened");
+    // The logo is decoded and checked before anything is applied, so a file with a bad logo
+    // changes nothing (errDesignLogo says so). Without a logo the current logo is kept.
+    const logo = result.logoBase64 ? decodeLogoBuffer(base64ToArrayBuffer(result.logoBase64)) : Promise.resolve(null);
+    return logo.then(function(decoded) {
+      applyDesignControls(result.style);
+      if (decoded) useDecodedLogo(decoded);
+      updatePreview();
+      showMessage("#designStatus", result.skipped ? "designOpenedPartly" : "designOpened");
+    }, function() {
+      showMessage("#designError", "errDesignLogo");
+    });
   }).catch(function() { showMessage("#designError", "errDesignInvalid"); });
 });

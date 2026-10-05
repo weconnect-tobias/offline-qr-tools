@@ -20,6 +20,7 @@ Use test data only — a guest network or a test SSID, your own Swish number wit
 | 2 | Wi-Fi WPA | Generated password (button "Create a strong password") | Connects after setting the same password on the router | | |
 | 3 | Wi-Fi hidden | Hidden network ticked | Connects to the hidden network | | |
 | 4 | Wi-Fi open | No password | Joins without asking | | |
+| 4a | Wi-Fi enterprise | PEAP + MSCHAPV2, username, password, "anonymous outer identity" ticked | Connects (Android; iPhone may not support enterprise codes) | | |
 | 5 | Web address | `example.com/menu?table=4` | Opens https://example.com/menu?table=4 | | |
 | 6 | Text | Two lines with å/ä/ö | Shows both lines correctly | | |
 | 7 | E-mail | Recipient, subject, message | Mail app with all three filled in | | |
@@ -29,6 +30,7 @@ Use test data only — a guest network or a test SSID, your own Swish number wit
 | 11 | Location | `58.9395`, `11.1712` | Opens Maps at Strömstad | | |
 | 12 | Calendar event | Timed event 14:00–16:00 with place | "Add to calendar", 14:00 local time | | |
 | 13 | Calendar event | All day, two days | All-day event over two days | | |
+| 13a | Calendar event | Scan the code from row 12 a second time | Ideally the same event (same UID) is updated rather than added twice — note what happens | | |
 | 14 | Swish | Number + amount + message, both locked | Swish opens, nothing can be changed | | |
 | 15 | Swish | Number only, message locked | Amount open, message empty and locked | | |
 | 16 | Swish | Amount open, message open | Both can be changed | | |
@@ -44,6 +46,7 @@ Use the Wi-Fi code from row 1. Each style should scan as quickly as the plain sq
 | 19 | Dots + circle corners + radial gradient | | |
 | 20 | Custom gradient 135° with a light second colour (contrast warning shown) | | |
 | 21 | Logo 30 %, "empty area" behind it | | |
+| 21a | Logo 25 % on a one-word text code (`Hej`) | | |
 | 22 | Narrow margin (2 modules) on a busy background | | |
 | 23 | Error correction "Low" without logo | | |
 | 24 | Swish look "Colour gradient" with the Swish symbol | | |

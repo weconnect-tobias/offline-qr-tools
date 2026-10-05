@@ -113,3 +113,15 @@ test("custom gradient angles: normalised, and the gradient runs through the cent
   const diag = plain(qrPaint(Object.assign({ gradientAngle: 45 }, base), 0, 0, 100));
   assert.ok(Math.abs(diag.x1) < 1e-9 && Math.abs(diag.y2 - 100) < 1e-9, "45° reaches the corners");
 });
+
+test("format information next to the finders is structural and never cleared for a logo", () => {
+  for (const n of [21, 25, 29, 57]) {
+    for (let i = 0; i < 9; i++) {
+      assert.ok(isStructuralModule(8, i, n) && isStructuralModule(i, 8, n), "top-left " + n + "/" + i);
+    }
+    for (let i = 0; i < 8; i++) {
+      assert.ok(isStructuralModule(8, n - 1 - i, n), "top-right " + n + "/" + i);
+      assert.ok(isStructuralModule(n - 1 - i, 8, n), "bottom-left " + n + "/" + i);
+    }
+  }
+});

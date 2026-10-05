@@ -185,7 +185,7 @@ I18N.en = {
   errSsidTooLong: "The network name can be at most 32 bytes (non-ASCII letters count as 2 or more).",
   errPswdWpa: "WPA passwords must be 8–63 characters, or exactly 64 hexadecimal characters.",
   errPswdWep: "WEP keys must be 5 or 13 characters, or 10 or 26 hexadecimal characters.",
-  pdfLibError: "The PDF library failed to load. Check your internet connection and try again.",
+  pdfLibError: "The PDF component could not be loaded. Reload the page and try again.",
   scanChecking: "Checking that the code can be scanned…",
   scanOk: "Scan test passed – the code reads correctly, even at low resolution.",
   scanMarginal: "The code reads at full size but not at low resolution. It may be hard to scan from a distance or in small prints – try a smaller logo, square dots or higher contrast.",

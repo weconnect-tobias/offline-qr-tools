@@ -45,14 +45,19 @@ function fitText(text, basePx, maxWidth, bold) {
   let size = basePx;
   const minSize = basePx * 0.45;
   while (measureTextWidth(text, size, bold) > maxWidth && size > minSize) size -= Math.max(1, basePx * 0.02);
-  let out = text;
-  while (out.length > 1 && measureTextWidth(out, size, bold) > maxWidth) out = out.slice(0, -2) + "…";
-  return { text: out, size: size };
+  if (measureTextWidth(text, size, bold) <= maxWidth) return { text: text, size: size };
+  // Cut whole characters (code points), so an emoji is never split into a broken half.
+  const chars = Array.from(text);
+  while (chars.length > 1 && measureTextWidth(chars.join("") + "…", size, bold) > maxWidth) chars.pop();
+  return { text: chars.join("") + "…", size: size };
 }
 
 // Builds centered text (optionally with a Wi-Fi icon) and records contrast problems.
 function makeText(state, spec) {
-  const raw = (spec.text || "").trim();
+  // Line breaks and tabs become spaces, and characters XML cannot hold are dropped here, so
+  // the canvas (PNG/PDF) and the SVG export show exactly the same text.
+  const raw = toWellFormed(spec.text || "").replace(/[\t\n\r]+/g, " ")
+    .replace(/[\u0000-\u001F\u007F\uFFFE\uFFFF]/g, "").trim();
   if (!raw && !spec.icon) return [];
 
   const fill = spec.color || contrastTextColor(spec.bg);

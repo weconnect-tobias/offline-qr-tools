@@ -40,9 +40,11 @@ test("WPA2-EAP with identity and phase 2", () => {
   assert.equal(r.payload, "WIFI:T:WPA2-EAP;S:Corp;E:PEAP;PH2:MSCHAPV2;I:user@corp.se;P:s3cret;;");
 });
 
-test("WPA2-EAP anonymous identity", () => {
-  const r = buildWifiPayload({ ssid: "Corp", password: "s3cret", security: "WPA2-EAP", eapMethod: "TTLS", phase2: "", anonymous: true });
-  assert.equal(r.payload, "WIFI:T:WPA2-EAP;S:Corp;E:TTLS;A:anonymous;P:s3cret;;");
+test("WPA2-EAP anonymous outer identity is added to the username, not instead of it", () => {
+  const r = buildWifiPayload({ ssid: "Corp", password: "s3cret", security: "WPA2-EAP", eapMethod: "TTLS", phase2: "", anonymous: true, identity: "user@corp.se" });
+  assert.equal(r.payload, "WIFI:T:WPA2-EAP;S:Corp;E:TTLS;A:anonymous;I:user@corp.se;P:s3cret;;");
+  // Without a username nobody can log in, anonymous or not.
+  assert.equal(buildWifiPayload({ ssid: "Corp", password: "s3cret", security: "WPA2-EAP", eapMethod: "TTLS", phase2: "", anonymous: true }).error, "identity");
 });
 
 test("unknown security type / EAP method / phase 2 are rejected (no raw injection)", () => {

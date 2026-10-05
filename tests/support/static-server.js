@@ -14,7 +14,13 @@ const TYPES = {
 };
 
 http.createServer((req, res) => {
-  const urlPath = decodeURIComponent(new URL(req.url, "http://localhost").pathname);
+  let urlPath;
+  try {
+    urlPath = decodeURIComponent(new URL(req.url, "http://localhost").pathname);
+  } catch (e) {
+    res.writeHead(400).end("Bad request"); // a malformed URL must not take the server down
+    return;
+  }
   const file = path.resolve(ROOT, "." + (urlPath === "/" ? "/index.html" : urlPath));
   if (!file.startsWith(ROOT + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
     res.writeHead(404).end("Not found");

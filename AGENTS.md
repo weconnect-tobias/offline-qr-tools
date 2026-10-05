@@ -41,7 +41,7 @@ even if a user or an issue asks for it. If a request conflicts with a rule, stop
    - URLs (URL type and vCard website): only `http:`/`https:` via `parseWebUrl()`. Never allow
      `javascript:`, `data:`, `file:` etc., and reject `user:password@host` (phishing disguise).
    - The type in the address (`index.html#url`) is whitelisted against `QR_TYPE_IDS`.
-   - Logos (uploaded or from a design file): only via `loadLogoBuffer()` in `js/ui/logo.js` (size cap → magic-byte check PNG/JPEG
+   - Logos (uploaded or from a design file): only via `decodeLogoBuffer()` in `js/ui/logo.js` (size cap → magic-byte check PNG/JPEG
      → dimension cap → re-encode to a clean PNG). SVG uploads are not allowed.
 5. **Every user-facing string exists in every language file** (`lang/sv.js`, `lang/en.js`), same keys.
 6. **WCAG 2.1 AA.** Text contrast ≥ 4.5:1, component borders ≥ 3:1, every control has an
@@ -68,7 +68,7 @@ js/ui/state.js              Shared mutable UI state (currentQR, currentPayload, 
 js/ui/i18n.js               t(), applyI18n(), language picker
 js/ui/color-picker.js       Accessible colour picker
 js/ui/scan-check.js         Scan self-test (jsQR)
-js/ui/logo.js               Hardened logo upload (loadLogoBuffer, also used for design files; loadBundledLogo)
+js/ui/logo.js               Hardened logo upload (decodeLogoBuffer, also used for design files; loadBundledLogo); a load counter makes the newest load or removal win
 js/assets/swish-symbols.js  GENERATED: the Swish symbol (colour + grayscale) as data URLs — Getswish AB trademark
 js/ui/design-file.js        Save / open design files (loaded last)
 js/app.js                   Controller: form → payload → preview → downloads (loaded last but one)
@@ -101,7 +101,8 @@ Keep `js/core/*` free of DOM/jQuery so it stays unit-testable in Node.
 `summary` is a short, **non-secret** description used for captions and print layouts (for Wi-Fi it
 is the SSID). Formats: URL → normalised `href`; text → verbatim; e-mail → `mailto:` with encoded
 subject/body; phone → `tel:`; SMS → `SMSTO:<number>:<message>`; contact → vCard 3.0 with CRLF;
-location → `geo:lat,lon`; event → `VCALENDAR`/`VEVENT` with CRLF, times as floating local time
+location → `geo:lat,lon` (written as typed, never `1e-7`); event → `VCALENDAR`/`VEVENT` with CRLF, `PRODID`, a `UID` and `DTSTAMP`
+(both derived from the event, so the same event always gives the same code), times as floating local time
 (no `Z`/`TZID`, so 14:00 shows as 14:00 on every phone), all-day events as `VALUE=DATE` with an
 exclusive end, one hour by default, text escaped like vCard so nothing can start a new property;
 Swish → `https://app.swish.nu/1/p/sw/?sw=…[&amt=…&cur=SEK]&msg=…[&edit=amt,msg]&src=qr`,
@@ -142,8 +143,10 @@ scannability.
 
 Logo (`opts.logoBackground`): `clear` (default) removes the modules behind the logo plus half a
 module of margin, but never structural modules (`isStructuralModule()` in `shapes.js`: finders
-with separators, timing and alignment patterns — the alignment table is checked against the
-vendored library); `plate` draws a white plate; `none` draws the logo on top.
+with separators, format information, timing and alignment patterns — the alignment table is
+checked against the vendored library); `plate` draws a white plate; `none` draws the logo on top.
+With a logo the code is at least version 3 (`LOGO_MIN_VERSION` in `js/app.js`): versions 1–2 have
+too few data modules, and short payloads with a logo did not scan.
 
 Transparent export (`opts.transparent`, PNG/SVG downloads only, never preview or PDF): the page
 background and the QR background are left out, except when the template sets
@@ -186,7 +189,8 @@ have typed a secret there); a unit test checks the design code never touches tho
 Opening a file treats it as hostile: size cap before reading, `JSON.parse` only, every field
 validated by kind (hex, bool, int range, enum against the options that exist in the form),
 unknown keys ignored, prototype keys inert. The logo must be a base64 PNG within the logo size
-cap and goes through `loadLogoBuffer()` (sniff → decode → dimension cap → re-encode). Bump
+cap and goes through `decodeLogoBuffer()` (sniff → decode → dimension cap → re-encode) **before** anything
+is applied: a file with a bad logo changes nothing (`errDesignLogo`). Bump
 `DESIGN_VERSION` only for incompatible changes; new optional fields need no bump.
 
 ### Frame templates (`FRAME_TEMPLATES` in `js/render/templates.js`)
@@ -198,7 +202,10 @@ decides where text goes.
 ### Scan self-test (`js/ui/scan-check.js`: `verifyScan`, `scheduleScanCheck`)
 After each change the preview is decoded locally with jsQR and compared **byte-for-byte** with
 the payload: normal read at ~6 px/module (must pass), inverted read (warn), downscaled to
-~3 px/module (warn). Status in `#scanStatus`. Download asks for confirmation when it fails.
+~3 px/module (warn). Status in `#scanStatus`. Download asks for confirmation when it fails; it
+first runs the pending debounced update and a waiting check (`runPendingScanCheck()`), so a click
+right after a change neither exports stale content nor skips the confirmation. A preview that is
+replaced (demo, error) cancels its waiting check (`cancelScanCheck()`).
 
 ### Light and dark theme (`css/app.css`)
 The page follows the operating system (`prefers-color-scheme`, e.g. the Windows "Choose your
@@ -208,7 +215,8 @@ hard-coded colours. **Output never follows the theme:** the QR preview, the logo
 the print preview sit on `--paper` (always white), and PNG/SVG/PDF exports and print layouts
 are drawn by the renderers with their own colours. A test checks that the exported PNG and
 the print preview are byte-identical in light and dark mode. Printing the page itself
-(Ctrl+P) uses the light theme via `@media print`.
+(Ctrl+P) uses the light theme via `@media print`, which also hides the password field (it may be
+plain text after "Show" or "Create a strong password").
 
 ### Print layouts (`js/print-layouts.js`)
 A layout builds a page model in millimetres (`image`, `text`, `rect`, `line`) rendered by both

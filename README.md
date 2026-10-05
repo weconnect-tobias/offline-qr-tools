@@ -125,7 +125,7 @@ npm test
 Unit tests cover the Wi-Fi payload, validation, escaping and static security rules; browser tests
 run the real app and fail on any network request, CSP violation or console error. They also decode
 every exported and printed QR code and verify that the password never appears as text.
-See [`AGENTS.md`](AGENTS.md#tests).
+See [`AGENTS.md`](https://github.com/weconnect-tobias/offline-qr-tools/blob/main/AGENTS.md#tests).
 
 ## Maintaining dependencies
 
@@ -138,7 +138,7 @@ See [`vendor/README.md`](vendor/README.md).
 
 ## Testing on real phones
 
-Before a release, go through [`docs/device-testing.md`](docs/device-testing.md) with an iPhone
+Before a release, go through [`docs/device-testing.md`](https://github.com/weconnect-tobias/offline-qr-tools/blob/main/docs/device-testing.md) with an iPhone
 and an Android phone; the automated tests decode with a software decoder, not phone cameras.
 
 ## Reporting security issues
@@ -147,7 +147,7 @@ See [`SECURITY.md`](SECURITY.md) — please report privately, not as a public is
 
 ## Contributing
 
-Read [`AGENTS.md`](AGENTS.md) first — it describes the architecture, the security rules every
+Read [`AGENTS.md`](https://github.com/weconnect-tobias/offline-qr-tools/blob/main/AGENTS.md) first — it describes the architecture, the security rules every
 change must respect, and how to add languages, frame styles and print layouts. The same file is
 used as instructions by AI coding assistants.
 

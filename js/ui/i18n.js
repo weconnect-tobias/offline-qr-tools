@@ -100,6 +100,8 @@ function populateLangSelect() {
       closeLangPopover();
       applyI18n();
       updatePreview();
+      // The chosen option disappears with the popover; keyboard focus returns to the button.
+      $("#langBtn").trigger("focus");
     });
     popover.append(btn);
   });
@@ -121,6 +123,10 @@ $("#langBtn").on("click", function(e) {
 });
 $("#langPopover").on("click", function(e) { e.stopPropagation(); });
 $(document).on("click", closeLangPopover);
+// Tabbing out of the open list closes it (otherwise Escape no longer reaches it).
+$("#langPicker").on("focusout", function(e) {
+  if (e.relatedTarget && !this.contains(e.relatedTarget)) closeLangPopover();
+});
 $("#langPicker").on("keydown", function(e) {
   if (e.key === "Escape" && $("#langPopover").hasClass("open")) {
     closeLangPopover();

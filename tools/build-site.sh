@@ -28,8 +28,9 @@ while IFS= read -r ref; do
 done < <(perl -0pe 's/<!--.*?-->//gs' index.html | grep -oE '(src|href)="[^"]+"' | sed -E 's/^(src|href)="([^"]+)"$/\2/')
 [ "$missing" -eq 0 ] || exit 1
 
-# Nothing that only belongs to development may slip in.
-if find "$OUT" \( -name node_modules -o -name tests -o -name '*.spec.js' -o -name '*.test.js' -o -name package.json \) | grep -q .; then
+# Nothing that only belongs to development may slip in. (-print -quit instead of "| grep -q":
+# with pipefail, grep closing the pipe early makes find fail and the check pass silently.)
+if [ -n "$(find "$OUT" \( -name node_modules -o -name tests -o -name '*.spec.js' -o -name '*.test.js' -o -name package.json \) -print -quit)" ]; then
   echo "development files found in output" >&2; exit 1
 fi
 
@@ -39,6 +40,10 @@ if [ "${1:-}" = "--zip" ]; then
   VERSION="${2:?usage: build-site.sh --zip <version>}"
   NAME="offline-qr-tools-$VERSION"
   cp -R "$OUT" "dist/$NAME"
-  (cd dist && zip -qr -X "$NAME.zip" "$NAME" && sha256sum "$NAME.zip" > "$NAME.zip.sha256")
+  # Reproducible archive: fixed timestamps (the last commit, or SOURCE_DATE_EPOCH) and a sorted
+  # file list, so the same commit always gives the same zip and the same checksum.
+  EPOCH="${SOURCE_DATE_EPOCH:-$(git log -1 --format=%ct 2>/dev/null || echo 315532800)}"
+  find "dist/$NAME" -exec touch -h -d "@$EPOCH" {} +
+  (cd dist && find "$NAME" -print | LC_ALL=C sort | TZ=UTC zip -q -X -D "$NAME.zip" -@ && sha256sum "$NAME.zip" > "$NAME.zip.sha256")
   echo "Release archive: dist/$NAME.zip"
 fi

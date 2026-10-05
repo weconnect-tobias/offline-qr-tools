@@ -194,8 +194,12 @@ function svgGradientDefs(scene, gradientIds) {
   scene.items.forEach(function(it) {
     const g = it.fill;
     if (!g || typeof g !== "object" || gradientIds.has(g)) return;
-    const id = "g" + gradientIds.size;
+    // The id is derived from the gradient itself, so two exported SVGs placed in one web page
+    // never pick up each other's gradient (same id = same definition).
+    const id = "qrg" + hashHex(JSON.stringify([g.gradient, g.stops, g.x1, g.y1, g.x2, g.y2, g.cx, g.cy, g.r]));
+    const known = Array.from(gradientIds.values()).indexOf(id) >= 0;
     gradientIds.set(g, id);
+    if (known) return;
     const stops = '<stop offset="0" stop-color="' + sanitizeHex(g.stops[0], "#000000") + '"/><stop offset="1" stop-color="' + sanitizeHex(g.stops[1], "#000000") + '"/>';
     if (g.gradient === "radial") {
       defs.push('<radialGradient id="' + id + '" gradientUnits="userSpaceOnUse" cx="' + f(g.cx) + '" cy="' + f(g.cy) + '" r="' + f(g.r) + '">' + stops + "</radialGradient>");
@@ -214,7 +218,7 @@ function sceneToSVG(scene) {
   scene.items.forEach(function(it) {
     switch (it.type) {
       case "rect":
-        out.push('<rect x="' + f(it.x) + '" y="' + f(it.y) + '" width="' + f(it.w) + '" height="' + f(it.h) + '" fill="' + svgPaint(it.fill) + '"/>');
+        out.push('<rect x="' + f(it.x) + '" y="' + f(it.y) + '" width="' + f(it.w) + '" height="' + f(it.h) + '" fill="' + svgPaint(it.fill, gradientIds) + '"/>');
         break;
       case "path": {
         let attrs = ' d="' + escapeXml(it.d) + '" fill="' + svgPaint(it.fill, gradientIds) + '"';
@@ -228,10 +232,11 @@ function sceneToSVG(scene) {
         break;
       }
       case "circle":
-        out.push('<circle cx="' + f(it.cx) + '" cy="' + f(it.cy) + '" r="' + f(it.r) + '" fill="' + svgPaint(it.fill) + '"/>');
+        out.push('<circle cx="' + f(it.cx) + '" cy="' + f(it.cy) + '" r="' + f(it.r) + '" fill="' + svgPaint(it.fill, gradientIds) + '"/>');
         break;
       case "text":
-        out.push('<text x="' + f(it.x) + '" y="' + f(it.y) + '" font-family="' + FONT_FAMILY + '" font-weight="' + (it.bold ? "bold" : "normal") +
+        // xml:space="preserve" keeps repeated spaces, as the canvas does when it measures and draws.
+        out.push('<text xml:space="preserve" x="' + f(it.x) + '" y="' + f(it.y) + '" font-family="' + FONT_FAMILY + '" font-weight="' + (it.bold ? "bold" : "normal") +
           '" font-size="' + f(it.size) + '" text-anchor="middle" dominant-baseline="central" fill="' + svgPaint(it.fill) + '">' + escapeXml(it.text) + "</text>");
         break;
       case "image":

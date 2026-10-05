@@ -13,7 +13,8 @@ const CASES = [
     payload: "BEGIN:VCARD\r\nVERSION:3.0\r\nN:Åkerö;Anna;;;\r\nFN:Anna Åkerö\r\nTEL;TYPE=CELL:+46701234567\r\nEND:VCARD", caption: "Anna Åkerö" },
   { type: "geo", fill: { "#geoLat": "58,9395", "#geoLon": "11.1712" }, payload: "geo:58.9395,11.1712" },
   { type: "event", fill: { "#evTitle": "Öppet hus", "#evLocation": "Storgatan 1", "#evStartDate": "2026-10-03", "#evStartTime": "14:00", "#evEndTime": "16:00" },
-    payload: "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nSUMMARY:Öppet hus\r\nDTSTART:20261003T140000\r\nDTEND:20261003T160000\r\nLOCATION:Storgatan 1\r\nEND:VEVENT\r\nEND:VCALENDAR",
+    payload: "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//offline-qr-tools//EN\r\nBEGIN:VEVENT\r\nUID:134a0afe6c9a33c0@offline-qr-tools\r\n" +
+      "DTSTAMP:20261003T000000Z\r\nSUMMARY:Öppet hus\r\nDTSTART:20261003T140000\r\nDTEND:20261003T160000\r\nLOCATION:Storgatan 1\r\nEND:VEVENT\r\nEND:VCALENDAR",
     caption: "Öppet hus" },
   { type: "swish", fill: { "#swNumber": "123 123 45 67", "#swAmount": "150", "#swMessage": "Kaffe & bulle" },
     payload: "https://app.swish.nu/1/p/sw/?sw=1231234567&amt=150&cur=SEK&msg=Kaffe%20%26%20bulle&src=qr", caption: "123 123 45 67" }

@@ -63,9 +63,11 @@ function textWidthMm(text, pt, font, bold) {
 function fitLine(text, maxPt, minPt, maxWidthMm, font, bold) {
   let pt = maxPt;
   while (pt > minPt && textWidthMm(text, pt, font, bold) > maxWidthMm) pt -= 0.5;
-  let out = text;
-  while (out.length > 1 && textWidthMm(out, pt, font, bold) > maxWidthMm) out = out.slice(0, -2) + "…";
-  return { text: out, pt: pt };
+  if (textWidthMm(text, pt, font, bold) <= maxWidthMm) return { text: text, pt: pt };
+  // Cut whole characters (code points), so an emoji is never split into a broken half.
+  const chars = Array.from(text);
+  while (chars.length > 1 && textWidthMm(chars.join("") + "…", pt, font, bold) > maxWidthMm) chars.pop();
+  return { text: chars.join("") + "…", pt: pt };
 }
 
 // Character-based wrapping for the network name: it must never be truncated,
@@ -86,12 +88,19 @@ function wrapChars(text, pt, maxWidthMm, font, bold) {
 }
 
 // Picks the largest size (maxPt..minPt) at which the value fits in maxLines lines.
-function fitWrapped(text, maxPt, minPt, maxWidthMm, maxLines, font, bold) {
+// With `truncate`, text that still needs more than maxLines lines at minPt is cut after
+// maxLines with "…" (a long web address would otherwise run off the card or the page).
+function fitWrapped(text, maxPt, minPt, maxWidthMm, maxLines, font, bold, truncate) {
   let pt = maxPt;
   let lines = wrapChars(text, pt, maxWidthMm, font, bold);
   while (lines.length > maxLines && pt > minPt) {
     pt -= 0.5;
     lines = wrapChars(text, pt, maxWidthMm, font, bold);
+  }
+  if (truncate && lines.length > maxLines) {
+    lines = lines.slice(0, maxLines);
+    lines[maxLines - 1] = fitLine(lines[maxLines - 1] + "…", pt, pt, maxWidthMm, font, bold).text;
+    return { lines: lines, pt: pt };
   }
   // Balance the lines (avoids a lone character on the last line), if the even split still fits.
   if (lines.length > 1) {
@@ -214,7 +223,8 @@ function buildTextBlock(content, colW, sizes, align) {
       const lab = fitLine(c.label, sizes.credPt * 0.8, sizes.credPt * 0.6, innerW, "helvetica", true);
       cy += lineHeightMm(lab.pt);
       credItems.push({ type: "text", x: pad, y: cy - lineHeightMm(lab.pt) * 0.25, text: lab.text, pt: lab.pt, font: "helvetica", bold: true, color: COLOR_MUTED });
-      const val = fitWrapped(c.value, sizes.credPt, sizes.credPt * 0.6, innerW, 3, "courier", true);
+      // The network name is never shortened (it must be typed exactly); other summaries are.
+      const val = fitWrapped(c.value, sizes.credPt, sizes.credPt * 0.6, innerW, 3, "courier", true, currentType !== "wifi");
       val.lines.forEach(function(line) {
         cy += lineHeightMm(val.pt);
         credItems.push({ type: "text", x: pad, y: cy - lineHeightMm(val.pt) * 0.25, text: line, pt: val.pt, font: "courier", bold: true, color: COLOR_TEXT });
@@ -548,10 +558,14 @@ function renderPrintPreview() {
 const renderPrintPreviewDebounced = debounce(renderPrintPreview, 200);
 
 function downloadPrintPdf() {
+  // Use the latest input and a finished self-test, even right after typing.
+  updatePreviewDebounced.flush();
+  runPendingScanCheck();
   if (!currentQR || isDemo) return;
   if (!window.jspdf) { alert(t("pdfLibError")); return; }
-  if ((lastScanStatus === "fail" || lastPrintStatus === "fail") && !window.confirm(t("printFailConfirm"))) return;
   const page = buildPrintPage();
+  const tooSmall = page.moduleMm < MODULE_MM_FAIL;
+  if ((lastScanStatus === "fail" || tooSmall) && !window.confirm(t("printFailConfirm"))) return;
   pageToPdf(page).save("qr-" + currentType + "-" + page.layout + ".pdf");
 }
 

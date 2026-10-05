@@ -111,7 +111,7 @@ test("gradients and custom eye colours are valid in the SVG export", async ({ gu
     expect(svg).toContain('fill-rule="evenodd"');
     expect(svg).toContain("#b91c1c");
     if (i === 0) expect(svg).not.toContain("Gradient");
-    else expect(svg).toMatch(/<(linear|radial)Gradient id="g\d+" gradientUnits="userSpaceOnUse"/);
+    else expect(svg).toMatch(/<(linear|radial)Gradient id="qrg[0-9a-f]{16}" gradientUnits="userSpaceOnUse"/);
   }
   // Well-formed XML: the browser's parser reports errors as a <parsererror> element.
   const errors = await page.evaluate((list) => list.filter(function(svg) {

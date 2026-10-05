@@ -185,7 +185,7 @@ test("custom gradient angle: slider only for that option, decodes at every angle
       const opts = Object.assign(getRenderOpts(), { gradient: "angle", gradientAngle: angle, gradientColor2: "#1e3a8a", qrShape: "dots" });
       const scene = buildScene(currentQR, 640, opts);
       if (verifyScan(sceneToCanvas(scene), scene.cell, currentPayload).status !== "ok") out.push(angle);
-      if (!/<linearGradient id="g\d+"/.test(sceneToSVG(scene))) out.push("svg" + angle);
+      if (!/<linearGradient id="qrg[0-9a-f]{16}"/.test(sceneToSVG(scene))) out.push("svg" + angle);
     }
     return out;
   });
