@@ -28,10 +28,14 @@ test("CSP meta forbids network access and inline code", () => {
 });
 
 test("no inline scripts, <style> blocks or style attributes in index.html", () => {
-  for (const m of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)) {
-    assert.match(m[1], /\bsrc="/, "script without src");
+  // Case-insensitive like the browser, and closing tags such as "</script >" are accepted too.
+  const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\b[^>]*>/gi)];
+  for (const m of scripts) {
+    assert.match(m[1], /\bsrc="/i, "script without src");
     assert.equal(m[2].trim(), "", "inline script body");
   }
+  // Every opening tag must be one of the checked ones (an unclosed script would slip past).
+  assert.equal((html.match(/<script\b/gi) || []).length, scripts.length, "script tag not checked");
   assert.ok(!/<style\b/i.test(html), "<style> block found");
   assert.ok(!/\sstyle="/i.test(html), "style attribute found");
   assert.ok(!/\son[a-z]+="/i.test(html), "inline event handler found");

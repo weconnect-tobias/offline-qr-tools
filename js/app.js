@@ -442,8 +442,15 @@ function demoInput(type) {
   return {};
 }
 
+// Looks up the reader for a content type. setQrType() already whitelists the type, but the
+// lookup checks again so no inherited property (e.g. "constructor") can ever be called.
+function readerFor(type) {
+  const reader = Object.prototype.hasOwnProperty.call(TYPE_READERS, type) ? TYPE_READERS[type] : null;
+  return typeof reader === "function" ? reader : TYPE_READERS.wifi;
+}
+
 function buildPayload() {
-  return buildQrPayload(currentType, TYPE_READERS[currentType]());
+  return buildQrPayload(currentType, readerFor(currentType)());
 }
 
 function setQrType(type, options) {
