@@ -442,15 +442,15 @@ function demoInput(type) {
   return {};
 }
 
-// Looks up the reader for a content type. setQrType() already whitelists the type, but the
-// lookup checks again so no inherited property (e.g. "constructor") can ever be called.
-function readerFor(type) {
-  const reader = Object.prototype.hasOwnProperty.call(TYPE_READERS, type) ? TYPE_READERS[type] : null;
-  return typeof reader === "function" ? reader : TYPE_READERS.wifi;
-}
+// Readers by content type. A Map, not a property lookup on the object: the type comes from the
+// address (#type), and a Map has no prototype chain, so a name like "constructor" or
+// "__proto__" can never reach an inherited function. setQrType() also whitelists the type.
+const TYPE_READER_MAP = new Map(Object.entries(TYPE_READERS));
 
 function buildPayload() {
-  return buildQrPayload(currentType, readerFor(currentType)());
+  // Checked right at the call, so an unknown type can never throw "not a function".
+  const reader = TYPE_READER_MAP.get(currentType);
+  return buildQrPayload(currentType, typeof reader === "function" ? reader() : TYPE_READERS.wifi());
 }
 
 function setQrType(type, options) {
